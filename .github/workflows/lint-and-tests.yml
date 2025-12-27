@@ -1,0 +1,48 @@
+name: Execute lint and tests
+
+on:
+  workflow_call:
+  push:
+    branches:
+      - "**"
+      - "!main"
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_DB: fastpubsub
+          POSTGRES_USER: fastpubsub
+          POSTGRES_PASSWORD: fastpubsub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Install system dependencies
+        run: sudo apt update && sudo apt install --no-install-recommends -y make git
+      - uses: actions/checkout@v5
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache
+          key: self-runner-${{ runner.os }}-python-3.14-${{ hashFiles('uv.lock') }}-precommit-${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Install dependencies
+        run: |
+          cp env.sample .env
+          python -m pip install --upgrade pip
+          pip install uv
+          uv sync --frozen
+      - name: pre-commit lint
+        run: make lint
+      - name: pytest
+        run: make test
