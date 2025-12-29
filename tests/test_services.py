@@ -427,3 +427,7 @@ def test_subscription_metrics(session):
 
     metrics = services.subscription_metrics(subscription_id)
     assert metrics == expected_metrics
+
+
+def test_database_ping(session):
+    assert services.database_ping() is True

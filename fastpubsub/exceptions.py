@@ -4,3 +4,7 @@ class NotFoundError(Exception):
 
 class AlreadyExistsError(Exception):
     pass
+
+
+class ServiceUnavailable(Exception):
+    pass

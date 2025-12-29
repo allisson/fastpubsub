@@ -16,6 +16,10 @@ class AlreadyExists(BaseModel):
     detail: str
 
 
+class ServiceUnavailable(BaseModel):
+    detail: str
+
+
 class CreateTopic(BaseModel):
     id: str = Field(..., pattern=regex_for_id, max_length=128)
 
@@ -70,3 +74,7 @@ class SubscriptionMetrics(BaseModel):
     delivered: int
     acked: int
     dlq: int
+
+
+class HealthCheck(BaseModel):
+    status: str
