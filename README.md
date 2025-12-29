@@ -42,7 +42,7 @@ First, you need to run database migrations:
 
 ```bash
 docker run --rm \
-  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:password@host:5432/dbname' \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' \
   allisson/fastpubsub db-migrate
 ```
 
@@ -52,7 +52,7 @@ Run the API server:
 
 ```bash
 docker run -p 8000:8000 \
-  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:password@host:5432/dbname' \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' \
   allisson/fastpubsub server
 ```
 
@@ -66,7 +66,7 @@ Apply database migrations to set up or upgrade the schema:
 
 ```bash
 docker run --rm \
-  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:password@host:5432/dbname' \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' \
   allisson/fastpubsub db-migrate
 ```
 
@@ -78,7 +78,7 @@ Start the HTTP API server:
 
 ```bash
 docker run -p 8000:8000 \
-  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:password@host:5432/dbname' \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' \
   allisson/fastpubsub server
 ```
 
@@ -90,7 +90,7 @@ Remove acknowledged messages older than a specified threshold:
 
 ```bash
 docker run --rm \
-  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:password@host:5432/dbname' \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' \
   allisson/fastpubsub cleanup_acked_messages
 ```
 
@@ -102,7 +102,7 @@ Release messages that are stuck in "delivered" state (locked but not acked/nacke
 
 ```bash
 docker run --rm \
-  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:password@host:5432/dbname' \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' \
   allisson/fastpubsub cleanup_stuck_messages
 ```
 
@@ -114,10 +114,10 @@ It's recommended to run cleanup commands periodically using cron or a scheduler 
 
 ```bash
 # Example: Run cleanup_acked_messages every hour
-0 * * * * docker run --rm -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:pass@host:5432/db' allisson/fastpubsub cleanup_acked_messages
+0 * * * * docker run --rm -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' allisson/fastpubsub cleanup_acked_messages
 
 # Example: Run cleanup_stuck_messages every 5 minutes
-*/5 * * * * docker run --rm -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:pass@host:5432/db' allisson/fastpubsub cleanup_stuck_messages
+*/5 * * * * docker run --rm -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' allisson/fastpubsub cleanup_stuck_messages
 ```
 
 ## ⚙️ Configuration
@@ -174,7 +174,7 @@ asctime=%(asctime)s level=%(levelname)s pathname=%(pathname)s line=%(lineno)s me
 
 ```bash
 docker run -p 8000:8000 \
-  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:pass@db:5432/fastpubsub' \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' \
   -e FASTPUBSUB_LOG_LEVEL='info' \
   -e FASTPUBSUB_API_NUM_WORKERS='4' \
   -e FASTPUBSUB_SUBSCRIPTION_MAX_ATTEMPTS='10' \
