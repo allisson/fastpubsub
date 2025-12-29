@@ -1,3 +1,4 @@
+import time
 from typing import Any
 from uuid import UUID
 
@@ -8,8 +9,10 @@ from gunicorn.app.base import BaseApplication
 
 from fastpubsub import models, services
 from fastpubsub.config import settings
-from fastpubsub.exceptions import AlreadyExistsError, NotFoundError
+from fastpubsub.exceptions import AlreadyExistsError, NotFoundError, ServiceUnavailable
+from fastpubsub.logger import get_logger
 
+logger = get_logger(__name__)
 tags_metadata = [
     {
         "name": "topics",
@@ -19,6 +22,10 @@ tags_metadata = [
         "name": "subscriptions",
         "description": "Operations with subscriptions.",
     },
+    {
+        "name": "monitoring",
+        "description": "Operations with monitoring.",
+    },
 ]
 
 app = FastAPI(
@@ -27,6 +34,36 @@ app = FastAPI(
     debug=settings.api_debug,
     default_response_class=ORJSONResponse,
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    logger.info(
+        "request",
+        extra={
+            "request.client.host": request.client.host,
+            "request.method": request.method,
+            "request.url.path": request.url.path,
+        },
+    )
+
+    response = await call_next(request)
+
+    end_time = time.time()
+    process_time = end_time - start_time
+    logger.info(
+        "response",
+        extra={
+            "request.client.host": request.client.host,
+            "request.method": request.method,
+            "request.url.path": request.url.path,
+            "response.status_code": response.status_code,
+            "time": f"{process_time:.4f}s",
+        },
+    )
+
+    return response
 
 
 @app.exception_handler(AlreadyExistsError)
@@ -39,6 +76,12 @@ def already_exists_exception_handler(request: Request, exc: AlreadyExistsError):
 def not_found_exception_handler(request: Request, exc: NotFoundError):
     response = jsonable_encoder(models.NotFound(detail=exc.args[0]))
     return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content=response)
+
+
+@app.exception_handler(ServiceUnavailable)
+def service_unavailable_exception_handler(request: Request, exc: NotFoundError):
+    response = jsonable_encoder(models.ServiceUnavailable(detail=exc.args[0]))
+    return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=response)
 
 
 @app.post(
@@ -204,6 +247,27 @@ def reprocess_dlq(id: str, data: list[UUID]):
 def subscription_metrics(id: str):
     subscription = get_subscription(id)
     return services.subscription_metrics(subscription_id=subscription.id)
+
+
+@app.get("/liveness", response_model=models.HealthCheck, status_code=status.HTTP_200_OK, tags=["monitoring"])
+def liveness_probe():
+    return models.HealthCheck(status="alive")
+
+
+@app.get(
+    "/readiness",
+    response_model=models.HealthCheck,
+    status_code=status.HTTP_200_OK,
+    responses={503: {"model": models.ServiceUnavailable}},
+    tags=["monitoring"],
+)
+def readiness_probe():
+    try:
+        services.database_ping()
+    except Exception:
+        raise ServiceUnavailable("database is down") from None
+
+    return models.HealthCheck(status="ready")
 
 
 class CustomGunicornApp(BaseApplication):

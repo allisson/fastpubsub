@@ -1,5 +1,8 @@
+from unittest import mock
+
 from fastapi import status
 
+from fastpubsub.exceptions import ServiceUnavailable
 from fastpubsub.models import CreateSubscription, CreateTopic
 from fastpubsub.services import (
     consume_messages,
@@ -310,3 +313,29 @@ def test_subscription_metrics(session, client):
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response_data == {"detail": "Subscription not found"}
+
+
+def test_liveness_probe(client):
+    response = client.get("/liveness")
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response_data == {"status": "alive"}
+
+
+def test_readiness_probe(session, client):
+    response = client.get("/readiness")
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response_data == {"status": "ready"}
+
+
+def test_readiness_probe_with_exception(session, client):
+    with mock.patch("fastpubsub.api.services.database_ping") as mock_database_ping:
+        mock_database_ping.side_effect = [ServiceUnavailable("database is down")]
+        response = client.get("/readiness")
+        response_data = response.json()
+
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert response_data == {"detail": "database is down"}

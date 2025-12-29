@@ -3,7 +3,7 @@ import uuid
 from typing import Any
 
 from psycopg.types.json import Json
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
 from fastpubsub.database import (
@@ -269,3 +269,9 @@ def subscription_metrics(subscription_id: str) -> SubscriptionMetrics:
         result["subscription_id"] = subscription_id
 
     return SubscriptionMetrics(**result)
+
+
+def database_ping() -> bool:
+    with SessionLocal() as session:
+        result = session.scalar(select(1))
+    return result == 1
