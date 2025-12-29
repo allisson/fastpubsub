@@ -66,22 +66,25 @@ async def log_requests(request: Request, call_next):
     return response
 
 
+def _create_error_response(model_class, status_code: int, exc: Exception):
+    """Helper to create error responses."""
+    response = jsonable_encoder(model_class(detail=exc.args[0]))
+    return JSONResponse(status_code=status_code, content=response)
+
+
 @app.exception_handler(AlreadyExistsError)
 def already_exists_exception_handler(request: Request, exc: AlreadyExistsError):
-    response = jsonable_encoder(models.AlreadyExists(detail=exc.args[0]))
-    return JSONResponse(status_code=status.HTTP_409_CONFLICT, content=response)
+    return _create_error_response(models.AlreadyExists, status.HTTP_409_CONFLICT, exc)
 
 
 @app.exception_handler(NotFoundError)
 def not_found_exception_handler(request: Request, exc: NotFoundError):
-    response = jsonable_encoder(models.NotFound(detail=exc.args[0]))
-    return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content=response)
+    return _create_error_response(models.NotFound, status.HTTP_404_NOT_FOUND, exc)
 
 
 @app.exception_handler(ServiceUnavailable)
 def service_unavailable_exception_handler(request: Request, exc: ServiceUnavailable):
-    response = jsonable_encoder(models.ServiceUnavailable(detail=exc.args[0]))
-    return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=response)
+    return _create_error_response(models.ServiceUnavailable, status.HTTP_503_SERVICE_UNAVAILABLE, exc)
 
 
 @app.post(
