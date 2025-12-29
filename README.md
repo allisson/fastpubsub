@@ -65,7 +65,9 @@ The API will be available at `http://localhost:8000`. You can access the interac
 Apply database migrations to set up or upgrade the schema:
 
 ```bash
-docker run allisson/fastpubsub db-migrate
+docker run --rm \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:password@host:5432/dbname' \
+  allisson/fastpubsub db-migrate
 ```
 
 This command creates all necessary tables, indexes, and stored procedures.
@@ -75,7 +77,9 @@ This command creates all necessary tables, indexes, and stored procedures.
 Start the HTTP API server:
 
 ```bash
-docker run allisson/fastpubsub server
+docker run -p 8000:8000 \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:password@host:5432/dbname' \
+  allisson/fastpubsub server
 ```
 
 The server runs with Gunicorn and Uvicorn workers for production-grade performance.
@@ -85,7 +89,9 @@ The server runs with Gunicorn and Uvicorn workers for production-grade performan
 Remove acknowledged messages older than a specified threshold:
 
 ```bash
-docker run allisson/fastpubsub cleanup_acked_messages
+docker run --rm \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:password@host:5432/dbname' \
+  allisson/fastpubsub cleanup_acked_messages
 ```
 
 This removes acked messages to prevent database bloat. By default, messages older than 1 hour (3600 seconds) are deleted.
@@ -95,7 +101,9 @@ This removes acked messages to prevent database bloat. By default, messages olde
 Release messages that are stuck in "delivered" state (locked but not acked/nacked):
 
 ```bash
-docker run allisson/fastpubsub cleanup_stuck_messages
+docker run --rm \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:password@host:5432/dbname' \
+  allisson/fastpubsub cleanup_stuck_messages
 ```
 
 This handles cases where a consumer crashed without acknowledging messages. By default, messages locked for more than 60 seconds are released.
@@ -106,10 +114,10 @@ It's recommended to run cleanup commands periodically using cron or a scheduler 
 
 ```bash
 # Example: Run cleanup_acked_messages every hour
-0 * * * * docker run allisson/fastpubsub cleanup_acked_messages
+0 * * * * docker run --rm -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:pass@host:5432/db' allisson/fastpubsub cleanup_acked_messages
 
 # Example: Run cleanup_stuck_messages every 5 minutes
-*/5 * * * * docker run allisson/fastpubsub cleanup_stuck_messages
+*/5 * * * * docker run --rm -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://user:pass@host:5432/db' allisson/fastpubsub cleanup_stuck_messages
 ```
 
 ## ⚙️ Configuration
