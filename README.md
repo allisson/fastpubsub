@@ -478,8 +478,10 @@ Understanding the message lifecycle is crucial for building reliable consumers:
 When a message is nacked, it becomes available again after a delay calculated using exponential backoff:
 
 ```
-delay = min(backoff_min_seconds * (2 ^ delivery_attempts), backoff_max_seconds)
+delay = min(backoff_min_seconds * (2 ** delivery_attempts), backoff_max_seconds)
 ```
+
+Where `**` represents exponentiation (2 to the power of delivery_attempts).
 
 Example with defaults (min=5s, max=300s):
 - Attempt 1: 5 seconds
@@ -555,7 +557,7 @@ spec:
           containers:
           - name: cleanup
             image: allisson/fastpubsub
-            command: ["python", "fastpubsub/main.py", "cleanup_acked_messages"]
+            args: ["cleanup_acked_messages"]
             env:
             - name: fastpubsub_database_url
               value: "postgresql+psycopg://user:password@postgres:5432/fastpubsub"
