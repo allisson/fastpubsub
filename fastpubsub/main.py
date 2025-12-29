@@ -20,11 +20,13 @@ def _log_command_execution(command_name: str, func, *args, **kwargs):
 
 @cli.command("db-migrate")
 def run_migrations_command() -> None:
+    # Return value is ignored as run_migrations has no meaningful return value
     _log_command_execution("db-migrate", run_migrations, command_type="upgrade", revision="head")
 
 
 @cli.command("server")
 def run_server_command() -> None:
+    # Server is a long-running command, so we only log the start
     logger.info("Starting server command")
     run_server()
 

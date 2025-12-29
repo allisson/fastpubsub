@@ -46,9 +46,19 @@ def _delete_entity(session, model, entity_id: str, error_message: str) -> None:
 
 
 def _execute_sql_command(query: str, params: dict) -> bool:
-    """Generic helper to execute SQL commands that return rowcount.
+    """Generic helper to execute SQL commands.
 
-    Returns True if exactly one row was affected, False otherwise.
+    Executes a SQL command and returns True if exactly one row was affected.
+    This is appropriate for commands that are expected to affect a single row,
+    such as message acknowledgment operations. Commands that may legitimately
+    affect 0 or multiple rows should handle the return value accordingly.
+
+    Args:
+        query: SQL query to execute
+        params: Query parameters
+
+    Returns:
+        True if exactly one row was affected, False otherwise
     """
     stmt = text(query)
     with SessionLocal() as session:
