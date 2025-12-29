@@ -30,6 +30,43 @@ def utc_now():
     return datetime.datetime.now(datetime.UTC)
 
 
+def _get_entity(session, model, entity_id: str, error_message: str):
+    """Generic helper to get an entity by ID or raise NotFoundError."""
+    entity = session.query(model).filter_by(id=entity_id).one_or_none()
+    if entity is None:
+        raise NotFoundError(error_message) from None
+    return entity
+
+
+def _delete_entity(session, model, entity_id: str, error_message: str) -> None:
+    """Generic helper to delete an entity by ID or raise NotFoundError."""
+    entity = _get_entity(session, model, entity_id, error_message)
+    session.delete(entity)
+    session.commit()
+
+
+def _execute_sql_command(query: str, params: dict) -> bool:
+    """Generic helper to execute SQL commands.
+
+    Executes a SQL command and returns True if exactly one row was affected.
+    This is appropriate for commands that are expected to affect a single row,
+    such as message acknowledgment operations. Commands that may legitimately
+    affect 0 or multiple rows should handle the return value accordingly.
+
+    Args:
+        query: SQL query to execute
+        params: Query parameters
+
+    Returns:
+        True if exactly one row was affected, False otherwise
+    """
+    stmt = text(query)
+    with SessionLocal() as session:
+        result = session.execute(stmt, params).rowcount
+        session.commit()
+    return result == 1
+
+
 def create_topic(data: CreateTopic) -> Topic:
     with SessionLocal() as session:
         db_topic = DBTopic(id=data.id, created_at=utc_now())
@@ -47,9 +84,7 @@ def create_topic(data: CreateTopic) -> Topic:
 
 def get_topic(topic_id: str) -> Topic:
     with SessionLocal() as session:
-        db_topic = session.query(DBTopic).filter_by(id=topic_id).one_or_none()
-        if db_topic is None:
-            raise NotFoundError("Topic not found") from None
+        db_topic = _get_entity(session, DBTopic, topic_id, "Topic not found")
         return Topic(**db_topic.to_dict())
 
 
@@ -61,11 +96,7 @@ def list_topic(offset: int, limit: int) -> list[Topic]:
 
 def delete_topic(topic_id) -> None:
     with SessionLocal() as session:
-        db_topic = session.query(DBTopic).filter_by(id=topic_id).one_or_none()
-        if db_topic is None:
-            raise NotFoundError("Topic not found") from None
-        session.delete(db_topic)
-        session.commit()
+        _delete_entity(session, DBTopic, topic_id, "Topic not found")
 
 
 def create_subscription(data: CreateSubscription) -> Subscription:
@@ -95,9 +126,7 @@ def create_subscription(data: CreateSubscription) -> Subscription:
 
 def get_subscription(subscription_id: str) -> Subscription:
     with SessionLocal() as session:
-        db_subscription = session.query(DBSubscription).filter_by(id=subscription_id).one_or_none()
-        if db_subscription is None:
-            raise NotFoundError("Subscription not found") from None
+        db_subscription = _get_entity(session, DBSubscription, subscription_id, "Subscription not found")
         return Subscription(**db_subscription.to_dict())
 
 
@@ -111,11 +140,7 @@ def list_subscription(offset: int, limit: int) -> list[Subscription]:
 
 def delete_subscription(subscription_id: str) -> None:
     with SessionLocal() as session:
-        db_subscription = session.query(DBSubscription).filter_by(id=subscription_id).one_or_none()
-        if db_subscription is None:
-            raise NotFoundError("Subscription not found")
-        session.delete(db_subscription)
-        session.commit()
+        _delete_entity(session, DBSubscription, subscription_id, "Subscription not found")
 
 
 def publish_messages(topic_id: str, messages: list[dict[str, Any]]) -> int:
@@ -157,36 +182,12 @@ def consume_messages(subscription_id: str, consumer_id: str, batch_size: int) ->
 
 def ack_messages(subscription_id: str, message_ids: list[uuid.UUID]) -> bool:
     query = "SELECT ack_messages(:subscription_id, :message_ids)"
-    stmt = text(query)
-
-    with SessionLocal() as session:
-        result = session.execute(
-            stmt,
-            {
-                "subscription_id": subscription_id,
-                "message_ids": message_ids,
-            },
-        ).rowcount
-        session.commit()
-
-    return result == 1
+    return _execute_sql_command(query, {"subscription_id": subscription_id, "message_ids": message_ids})
 
 
 def nack_messages(subscription_id: str, message_ids: list[uuid.UUID]) -> bool:
     query = "SELECT nack_messages(:subscription_id, :message_ids)"
-    stmt = text(query)
-
-    with SessionLocal() as session:
-        result = session.execute(
-            stmt,
-            {
-                "subscription_id": subscription_id,
-                "message_ids": message_ids,
-            },
-        ).rowcount
-        session.commit()
-
-    return result == 1
+    return _execute_sql_command(query, {"subscription_id": subscription_id, "message_ids": message_ids})
 
 
 def list_dlq_messages(subscription_id: str, offset: int = 0, limit: int = 100) -> list[Message]:
@@ -212,51 +213,17 @@ def list_dlq_messages(subscription_id: str, offset: int = 0, limit: int = 100) -
 
 def reprocess_dlq_messages(subscription_id: str, message_ids: list[uuid.UUID]) -> bool:
     query = "SELECT reprocess_dlq_messages(:subscription_id, :message_ids)"
-    stmt = text(query)
-
-    with SessionLocal() as session:
-        result = session.execute(
-            stmt,
-            {
-                "subscription_id": subscription_id,
-                "message_ids": message_ids,
-            },
-        ).rowcount
-        session.commit()
-
-    return result == 1
+    return _execute_sql_command(query, {"subscription_id": subscription_id, "message_ids": message_ids})
 
 
-def cleanup_stuck_messages(lock_timeout_seconds: int) -> int:
+def cleanup_stuck_messages(lock_timeout_seconds: int) -> bool:
     query = "SELECT cleanup_stuck_messages(make_interval(secs => :timeout))"
-    stmt = text(query)
-
-    with SessionLocal() as session:
-        result = session.execute(
-            stmt,
-            {
-                "timeout": lock_timeout_seconds,
-            },
-        ).rowcount
-        session.commit()
-
-    return result == 1
+    return _execute_sql_command(query, {"timeout": lock_timeout_seconds})
 
 
 def cleanup_acked_messages(older_than_seconds: int) -> bool:
     query = "SELECT cleanup_acked_messages(make_interval(secs => :older_than))"
-    stmt = text(query)
-
-    with SessionLocal() as session:
-        result = session.execute(
-            stmt,
-            {
-                "older_than": older_than_seconds,
-            },
-        ).rowcount
-        session.commit()
-
-    return result == 1
+    return _execute_sql_command(query, {"older_than": older_than_seconds})
 
 
 def subscription_metrics(subscription_id: str) -> SubscriptionMetrics:
