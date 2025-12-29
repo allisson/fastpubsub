@@ -520,7 +520,7 @@ The filter feature uses a simple JSON style where keys are field names and value
 
 This filter matches messages that have:
 - `event_type` equal to "order.created" OR "order.updated"
-- AND `priority` equal to "high" OR "critical"  
+- AND `priority` equal to "high" OR "critical"
 - AND `region` equal to "us-east" OR "us-west"
 
 ### Example 4: Handling Failed Messages
