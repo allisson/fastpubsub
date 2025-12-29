@@ -46,7 +46,10 @@ def _delete_entity(session, model, entity_id: str, error_message: str) -> None:
 
 
 def _execute_sql_command(query: str, params: dict) -> bool:
-    """Generic helper to execute SQL commands that return rowcount."""
+    """Generic helper to execute SQL commands that return rowcount.
+
+    Returns True if exactly one row was affected, False otherwise.
+    """
     stmt = text(query)
     with SessionLocal() as session:
         result = session.execute(stmt, params).rowcount
@@ -203,7 +206,7 @@ def reprocess_dlq_messages(subscription_id: str, message_ids: list[uuid.UUID]) -
     return _execute_sql_command(query, {"subscription_id": subscription_id, "message_ids": message_ids})
 
 
-def cleanup_stuck_messages(lock_timeout_seconds: int) -> int:
+def cleanup_stuck_messages(lock_timeout_seconds: int) -> bool:
     query = "SELECT cleanup_stuck_messages(make_interval(secs => :timeout))"
     return _execute_sql_command(query, {"timeout": lock_timeout_seconds})
 
