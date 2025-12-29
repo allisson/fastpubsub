@@ -79,7 +79,7 @@ def not_found_exception_handler(request: Request, exc: NotFoundError):
 
 
 @app.exception_handler(ServiceUnavailable)
-def service_unavailable_exception_handler(request: Request, exc: NotFoundError):
+def service_unavailable_exception_handler(request: Request, exc: ServiceUnavailable):
     response = jsonable_encoder(models.ServiceUnavailable(detail=exc.args[0]))
     return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=response)
 
