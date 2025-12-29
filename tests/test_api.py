@@ -339,3 +339,9 @@ def test_readiness_probe_with_exception(session, client):
 
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert response_data == {"detail": "database is down"}
+
+
+def test_prometheus_metrics(client):
+    response = client.get("/metrics")
+
+    assert response.status_code == status.HTTP_200_OK

@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, ORJSONResponse
 from gunicorn.app.base import BaseApplication
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from fastpubsub import models, services
 from fastpubsub.config import settings
@@ -34,6 +35,8 @@ app = FastAPI(
     debug=settings.api_debug,
     default_response_class=ORJSONResponse,
 )
+
+Instrumentator().instrument(app).expose(app)
 
 
 @app.middleware("http")

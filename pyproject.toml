@@ -9,6 +9,7 @@ dependencies = [
     "fastapi[standard]>=0.127.1,<1",
     "gunicorn>=23.0.0,<24",
     "orjson>=3.11.5,<4",
+    "prometheus-fastapi-instrumentator>=7.1.0,<8",
     "psycopg[binary]>=3.3.2,<4",
     "python-json-logger>=4.0.0,<5",
     "sqlalchemy>=2.0.45,<3",
