@@ -8,6 +8,14 @@ from fastpubsub.config import settings
 regex_for_id = "^[a-zA-Z0-9-._]+$"
 
 
+class NotFound(BaseModel):
+    detail: str
+
+
+class AlreadyExists(BaseModel):
+    detail: str
+
+
 class CreateTopic(BaseModel):
     id: str = Field(..., pattern=regex_for_id, max_length=128)
 
@@ -15,6 +23,10 @@ class CreateTopic(BaseModel):
 class Topic(BaseModel):
     id: str
     created_at: datetime
+
+
+class ListTopicAPI(BaseModel):
+    data: list[Topic]
 
 
 class CreateSubscription(BaseModel):

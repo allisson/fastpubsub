@@ -27,7 +27,11 @@ create-migration:
 
 .PHONY: run-db-migrate
 run-db-migrate:
-	PYTHONPATH=./ uv run python fastpubsub/main.py
+	PYTHONPATH=./ uv run python fastpubsub/main.py db-migrate
+
+.PHONY: run-server
+run-server:
+	PYTHONPATH=./ uv run python fastpubsub/main.py server
 
 .PHONY: docker-build
 docker-build:

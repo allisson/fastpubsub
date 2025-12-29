@@ -1,5 +1,7 @@
 import pytest
+from fastapi.testclient import TestClient
 
+from fastpubsub.api import app
 from fastpubsub.database import engine, run_migrations, SessionLocal, Subscription, SubscriptionMessage, Topic
 
 
@@ -25,3 +27,8 @@ def session(connection):
     session.query(SubscriptionMessage).delete()
     session.commit()
     session.close()
+
+
+@pytest.fixture
+def client():
+    return TestClient(app)

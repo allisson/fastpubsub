@@ -4,6 +4,7 @@ import sqlalchemy as sa
 from alembic.config import command, Config
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from fastpubsub.config import settings
@@ -90,3 +91,11 @@ def run_migrations(command_type: str = "upgrade", revision: str = "head") -> Non
         "finished db migrations",
         extra=dict(ini_location=ini_location, script_location=script_location),
     )
+
+
+def is_unique_violation(exc: IntegrityError) -> bool:
+    return "psycopg.errors.UniqueViolation" in exc.args[0]
+
+
+def is_foreign_key_violation(exc: IntegrityError) -> bool:
+    return "psycopg.errors.ForeignKeyViolation" in exc.args[0]

@@ -20,6 +20,22 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.execute(
         """
+        ---------- uuid v7 generation ----------
+        CREATE OR REPLACE FUNCTION uuid_generate_v7()
+        RETURNS uuid
+        AS $$
+        DECLARE
+            unix_ts_ms bytea;
+            uuid_bytes bytea;
+        BEGIN
+            unix_ts_ms := decode(lpad(to_hex(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint), 12, '0'), 'hex');
+            uuid_bytes := unix_ts_ms || substring(decode(replace(gen_random_uuid()::text, '-', ''), 'hex') from 7 for 10);
+            uuid_bytes := set_byte(uuid_bytes, 6, (get_byte(uuid_bytes, 6) & 15) | 112);
+            uuid_bytes := set_byte(uuid_bytes, 8, (get_byte(uuid_bytes, 8) & 63) | 128);
+            RETURN encode(uuid_bytes, 'hex')::uuid;
+        END;
+        $$ LANGUAGE plpgsql VOLATILE;
+
         ---------- Tables ----------
         CREATE TABLE topics (
             id TEXT PRIMARY KEY,
@@ -37,7 +53,7 @@ def upgrade() -> None:
         );
 
         CREATE TABLE subscription_messages (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
             subscription_id TEXT NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
             payload JSONB NOT NULL,
             status TEXT NOT NULL DEFAULT 'available',
@@ -322,5 +338,7 @@ def downgrade() -> None:
         DROP TABLE IF EXISTS subscription_messages;
         DROP TABLE IF EXISTS subscriptions;
         DROP TABLE IF EXISTS topics;
+
+        DROP FUNCTION IF EXISTS uuid_generate_v7();
         """
     )
