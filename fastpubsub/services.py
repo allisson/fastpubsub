@@ -189,8 +189,8 @@ def nack_messages(subscription_id: str, message_ids: list[uuid.UUID]) -> bool:
     return result == 1
 
 
-def list_dlq_messages(subscription_id: str, limit: int = 100) -> list[Message]:
-    query = "SELECT * FROM list_dlq_messages(:subscription_id, :limit)"
+def list_dlq_messages(subscription_id: str, offset: int = 0, limit: int = 100) -> list[Message]:
+    query = "SELECT * FROM list_dlq_messages(:subscription_id, :offset, :limit)"
     stmt = text(query)
 
     with SessionLocal() as session:
@@ -199,6 +199,7 @@ def list_dlq_messages(subscription_id: str, limit: int = 100) -> list[Message]:
                 stmt,
                 {
                     "subscription_id": subscription_id,
+                    "offset": offset,
                     "limit": limit,
                 },
             )
@@ -226,15 +227,14 @@ def reprocess_dlq_messages(subscription_id: str, message_ids: list[uuid.UUID]) -
     return result == 1
 
 
-def cleanup_stuck_messages(subscription_id: str, lock_timeout_seconds: int) -> int:
-    query = "SELECT cleanup_stuck_messages(:subscription_id, make_interval(secs => :timeout))"
+def cleanup_stuck_messages(lock_timeout_seconds: int) -> int:
+    query = "SELECT cleanup_stuck_messages(make_interval(secs => :timeout))"
     stmt = text(query)
 
     with SessionLocal() as session:
         result = session.execute(
             stmt,
             {
-                "subscription_id": subscription_id,
                 "timeout": lock_timeout_seconds,
             },
         ).rowcount
@@ -243,15 +243,14 @@ def cleanup_stuck_messages(subscription_id: str, lock_timeout_seconds: int) -> i
     return result == 1
 
 
-def cleanup_acked_messages(subscription_id: str, older_than_seconds: int) -> bool:
-    query = "SELECT cleanup_acked_messages(:subscription_id, make_interval(secs => :older_than))"
+def cleanup_acked_messages(older_than_seconds: int) -> bool:
+    query = "SELECT cleanup_acked_messages(make_interval(secs => :older_than))"
     stmt = text(query)
 
     with SessionLocal() as session:
         result = session.execute(
             stmt,
             {
-                "subscription_id": subscription_id,
                 "older_than": older_than_seconds,
             },
         ).rowcount

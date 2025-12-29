@@ -1,7 +1,13 @@
 from fastapi import status
 
 from fastpubsub.models import CreateSubscription, CreateTopic
-from fastpubsub.services import create_subscription, create_topic
+from fastpubsub.services import (
+    consume_messages,
+    create_subscription,
+    create_topic,
+    nack_messages,
+    publish_messages,
+)
 
 
 def test_create_topic(session, client):
@@ -73,6 +79,22 @@ def test_delete_topic(session, client):
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
     response = client.delete("/topics/my-topic")
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response_data == {"detail": "Topic not found"}
+
+
+def test_publish_messages(session, client):
+    create_topic(data=CreateTopic(id="my-topic"))
+
+    data = [{"id": 1}, {"id": 2}]
+
+    response = client.post("/topics/my-topic/messages", json=data)
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    response = client.post("/topics/not-found-topic/messages", json=data)
     response_data = response.json()
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -154,6 +176,136 @@ def test_delete_subscription(session, client):
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
     response = client.delete("/subscriptions/my-subscription")
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response_data == {"detail": "Subscription not found"}
+
+
+def test_consume_messages(session, client):
+    create_topic(data=CreateTopic(id="my-topic"))
+    create_subscription(data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+    publish_messages(topic_id="my-topic", messages=[{"id": 1}])
+
+    response = client.get(
+        "/subscriptions/my-subscription/messages", params={"consumer_id": "id", "batch_size": 1}
+    )
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response_data["data"]) == 1
+    assert response_data["data"][0]["subscription_id"] == "my-subscription"
+
+    response = client.get(
+        "/subscriptions/not-found-subscription/messages", params={"consumer_id": "id", "batch_size": 1}
+    )
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response_data == {"detail": "Subscription not found"}
+
+
+def test_ack_messages(session, client):
+    create_topic(data=CreateTopic(id="my-topic"))
+    create_subscription(data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+    publish_messages(topic_id="my-topic", messages=[{"id": 1}])
+    messages = consume_messages(subscription_id="my-subscription", consumer_id="id", batch_size=1)
+    data = [str(message.id) for message in messages]
+
+    response = client.post("/subscriptions/my-subscription/acks", json=data)
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    response = client.post("/subscriptions/not-found-subscription/acks", json=data)
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response_data == {"detail": "Subscription not found"}
+
+
+def test_nack_messages(session, client):
+    create_topic(data=CreateTopic(id="my-topic"))
+    create_subscription(data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+    publish_messages(topic_id="my-topic", messages=[{"id": 1}])
+    messages = consume_messages(subscription_id="my-subscription", consumer_id="id", batch_size=1)
+    data = [str(message.id) for message in messages]
+
+    response = client.post("/subscriptions/my-subscription/nacks", json=data)
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    response = client.post("/subscriptions/not-found-subscription/nacks", json=data)
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response_data == {"detail": "Subscription not found"}
+
+
+def test_list_dlq(session, client):
+    create_topic(data=CreateTopic(id="my-topic"))
+    create_subscription(
+        data=CreateSubscription(id="my-subscription", topic_id="my-topic", max_delivery_attempts=1)
+    )
+    publish_messages(topic_id="my-topic", messages=[{"id": 1}])
+    messages = consume_messages(subscription_id="my-subscription", consumer_id="id", batch_size=1)
+    nack_messages(subscription_id="my-subscription", message_ids=[str(message.id) for message in messages])
+
+    response = client.get("/subscriptions/my-subscription/dlq", params={"offset": 0, "limit": 1})
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response_data["data"]) == 1
+    assert response_data["data"][0]["subscription_id"] == "my-subscription"
+
+    response = client.get("/subscriptions/not-found-subscription/dlq", params={"offset": 0, "limit": 1})
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response_data == {"detail": "Subscription not found"}
+
+
+def test_reprocess_dlq(session, client):
+    create_topic(data=CreateTopic(id="my-topic"))
+    create_subscription(
+        data=CreateSubscription(id="my-subscription", topic_id="my-topic", max_delivery_attempts=1)
+    )
+    publish_messages(topic_id="my-topic", messages=[{"id": 1}])
+    messages = consume_messages(subscription_id="my-subscription", consumer_id="id", batch_size=1)
+    message = messages[0]
+    nack_messages(subscription_id="my-subscription", message_ids=[str(message.id)])
+    data = [str(message.id)]
+
+    response = client.post("/subscriptions/my-subscription/dlq/reprocess", json=data)
+    messages = consume_messages(subscription_id="my-subscription", consumer_id="id", batch_size=1)
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+    assert len(messages) == 1
+    assert messages[0] == message
+
+    response = client.post("/subscriptions/not-found-subscription/dlq/reprocess", json=data)
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response_data == {"detail": "Subscription not found"}
+
+
+def test_subscription_metrics(session, client):
+    create_topic(data=CreateTopic(id="my-topic"))
+    create_subscription(data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+
+    response = client.get("/subscriptions/my-subscription/metrics")
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response_data == {
+        "acked": 0,
+        "available": 0,
+        "delivered": 0,
+        "dlq": 0,
+        "subscription_id": "my-subscription",
+    }
+
+    response = client.get("/subscriptions/not-found-subscription/metrics")
     response_data = response.json()
 
     assert response.status_code == status.HTTP_404_NOT_FOUND

@@ -308,7 +308,7 @@ def test_nack_going_to_dlq(session, messages):
     result = services.nack_messages(subscription_id, [message.id for message in messages])
     assert result is True
 
-    messages = services.list_dlq_messages(subscription_id, 10)
+    messages = services.list_dlq_messages(subscription_id, 0, 10)
     assert len(messages) == 3
 
 
@@ -331,7 +331,7 @@ def test_reprocess_dlq_messages(session, messages):
     result = services.nack_messages(subscription_id, [message.id for message in messages])
     assert result is True
 
-    messages = services.list_dlq_messages(subscription_id, 10)
+    messages = services.list_dlq_messages(subscription_id, 0, 10)
     assert len(messages) == 3
 
     result = services.reprocess_dlq_messages(subscription_id, [message.id for message in messages])
@@ -360,7 +360,7 @@ def test_cleanup_stuck_messages(session, messages):
 
     time.sleep(1)
 
-    result = services.cleanup_stuck_messages(subscription_id, 1)
+    result = services.cleanup_stuck_messages(1)
     assert result is True
 
     messages = services.consume_messages(subscription_id, consumer_id, 10)
@@ -392,7 +392,7 @@ def test_cleanup_acked_messages(session, messages):
 
     time.sleep(1)
 
-    result = services.cleanup_acked_messages(subscription_id, 1)
+    result = services.cleanup_acked_messages(1)
     assert result is True
 
     db_messages = get_db_messages(session, subscription_id)
