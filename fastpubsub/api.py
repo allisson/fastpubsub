@@ -263,7 +263,9 @@ def liveness_probe():
 )
 def readiness_probe():
     try:
-        services.database_ping()
+        is_db_ok = services.database_ping()
+        if not is_db_ok:
+            raise ServiceUnavailable("database is down")
     except Exception:
         raise ServiceUnavailable("database is down") from None
 
