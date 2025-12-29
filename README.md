@@ -14,7 +14,7 @@
 - 🔍 **Message filtering** - Subscribe to specific messages using JSON-based filters
 - 🔄 **Automatic retries** - Configurable retry logic with exponential backoff
 - 💀 **Dead Letter Queue (DLQ)** - Handle failed messages gracefully
-- 📊 **Metrics & Monitoring** - Built-in subscription metrics
+- 📊 **Metrics & Monitoring** - Built-in subscription metrics and Prometheus support
 - 🐳 **Docker-ready** - Easy deployment with Docker
 - 🔒 **Reliable delivery** - Acknowledgment and negative-acknowledgment support
 - 🧹 **Automatic cleanup** - Background jobs for message maintenance
@@ -491,6 +491,30 @@ GET /readiness
 
 The readiness endpoint checks if the database connection is healthy. Use this endpoint to determine if the application should receive traffic.
 
+### 📊 Prometheus Metrics
+
+Get Prometheus-compatible metrics for monitoring:
+
+```http
+GET /metrics
+```
+
+**Response:** `200 OK` (Prometheus text format)
+```
+# HELP http_requests_total Total number of requests by method, path and status
+# TYPE http_requests_total counter
+http_requests_total{method="GET",path="/topics",status="200"} 42.0
+...
+```
+
+The metrics endpoint exposes application metrics in Prometheus format, including:
+- HTTP request counts and latencies
+- Request duration histograms
+- Active requests gauge
+- And other standard FastAPI metrics
+
+You can configure Prometheus to scrape this endpoint for monitoring and alerting.
+
 ## 💡 Usage Examples
 
 ### Example 1: Simple Pub/Sub
@@ -609,6 +633,24 @@ readinessProbe:
     port: 8000
   initialDelaySeconds: 10
   periodSeconds: 5
+```
+
+### Example 6: Monitoring with Prometheus
+
+```bash
+# Access Prometheus metrics
+curl "http://localhost:8000/metrics"
+```
+
+**Prometheus scrape configuration:**
+
+```yaml
+scrape_configs:
+  - job_name: 'fastpubsub'
+    static_configs:
+      - targets: ['localhost:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
 ```
 
 ## 🔄 Message Flow
