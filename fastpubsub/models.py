@@ -60,6 +60,10 @@ class Message(BaseModel):
     created_at: datetime
 
 
+class ListMessageAPI(BaseModel):
+    data: list[Message]
+
+
 class SubscriptionMetrics(BaseModel):
     subscription_id: str
     available: int

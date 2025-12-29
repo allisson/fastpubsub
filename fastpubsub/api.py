@@ -1,3 +1,6 @@
+from typing import Any
+from uuid import UUID
+
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, ORJSONResponse
@@ -77,6 +80,17 @@ def delete_topic(id: str):
 
 
 @app.post(
+    "/topics/{id}/messages",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={404: {"model": models.NotFound}},
+    tags=["topics"],
+)
+def publish_messages(id: str, data: list[dict[str, Any]]):
+    topic = services.get_topic(id)
+    return services.publish_messages(topic_id=topic.id, messages=data)
+
+
+@app.post(
     "/subscriptions",
     response_model=models.Subscription,
     status_code=status.HTTP_201_CREATED,
@@ -117,6 +131,79 @@ def list_subscription(offset: int = 0, limit: int = 10):
 )
 def delete_subscription(id: str):
     services.delete_subscription(id)
+
+
+@app.get(
+    "/subscriptions/{id}/messages",
+    response_model=models.ListMessageAPI,
+    status_code=status.HTTP_200_OK,
+    responses={404: {"model": models.NotFound}},
+    tags=["subscriptions"],
+)
+def consume_messages(id: str, consumer_id: str, batch_size: int = 10):
+    subscription = get_subscription(id)
+    messages = services.consume_messages(
+        subscription_id=subscription.id, consumer_id=consumer_id, batch_size=batch_size
+    )
+    return models.ListMessageAPI(data=messages)
+
+
+@app.post(
+    "/subscriptions/{id}/acks",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={404: {"model": models.NotFound}},
+    tags=["subscriptions"],
+)
+def ack_messages(id: str, data: list[UUID]):
+    subscription = get_subscription(id)
+    services.ack_messages(subscription_id=subscription.id, message_ids=data)
+
+
+@app.post(
+    "/subscriptions/{id}/nacks",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={404: {"model": models.NotFound}},
+    tags=["subscriptions"],
+)
+def nack_messages(id: str, data: list[UUID]):
+    subscription = get_subscription(id)
+    services.nack_messages(subscription_id=subscription.id, message_ids=data)
+
+
+@app.get(
+    "/subscriptions/{id}/dlq",
+    response_model=models.ListMessageAPI,
+    status_code=status.HTTP_200_OK,
+    responses={404: {"model": models.NotFound}},
+    tags=["subscriptions"],
+)
+def list_dlq(id: str, offset: int = 0, limit: int = 10):
+    subscription = get_subscription(id)
+    messages = services.list_dlq_messages(subscription_id=subscription.id, offset=offset, limit=limit)
+    return models.ListMessageAPI(data=messages)
+
+
+@app.post(
+    "/subscriptions/{id}/dlq/reprocess",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={404: {"model": models.NotFound}},
+    tags=["subscriptions"],
+)
+def reprocess_dlq(id: str, data: list[UUID]):
+    subscription = get_subscription(id)
+    services.reprocess_dlq_messages(subscription_id=subscription.id, message_ids=data)
+
+
+@app.get(
+    "/subscriptions/{id}/metrics",
+    response_model=models.SubscriptionMetrics,
+    status_code=status.HTTP_200_OK,
+    responses={404: {"model": models.NotFound}},
+    tags=["subscriptions"],
+)
+def subscription_metrics(id: str):
+    subscription = get_subscription(id)
+    return services.subscription_metrics(subscription_id=subscription.id)
 
 
 class CustomGunicornApp(BaseApplication):

@@ -233,6 +233,7 @@ def upgrade() -> None:
 
         CREATE OR REPLACE FUNCTION list_dlq_messages(
             p_subscription_id TEXT,
+            p_offset INT,
             p_limit INT
         )
         RETURNS SETOF subscription_messages
@@ -243,6 +244,7 @@ def upgrade() -> None:
         WHERE subscription_id = p_subscription_id
         AND status = 'dlq'
         ORDER BY created_at
+        OFFSET p_offset
         LIMIT p_limit;
         $$;
 
@@ -264,7 +266,6 @@ def upgrade() -> None:
         $$;
 
         CREATE OR REPLACE FUNCTION cleanup_stuck_messages(
-            p_subscription_id TEXT,
             p_lock_timeout INTERVAL
         )
         RETURNS INT
@@ -274,22 +275,19 @@ def upgrade() -> None:
         SET status = 'available',
             locked_at = NULL,
             locked_by = NULL
-        WHERE subscription_id = p_subscription_id
-        AND status = 'delivered'
+        WHERE status = 'delivered'
         AND locked_at < now() - p_lock_timeout
         RETURNING 1;
         $$;
 
         CREATE OR REPLACE FUNCTION cleanup_acked_messages(
-            p_subscription_id TEXT,
             p_older_than INTERVAL
         )
         RETURNS INT
         LANGUAGE sql
         AS $$
         DELETE FROM subscription_messages
-        WHERE subscription_id = p_subscription_id
-        AND status = 'acked'
+        WHERE status = 'acked'
         AND acked_at < now() - p_older_than
         RETURNING 1;
         $$;

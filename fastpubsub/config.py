@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_num_workers: int = 1
 
+    # workers
+    cleanup_acked_messages_older_than_seconds: int = 3600
+    cleanup_stuck_messages_lock_timeout_seconds: int = 60
+
     # load .env
     model_config = SettingsConfigDict(env_file=".env", env_prefix="fastpubsub_")
 
