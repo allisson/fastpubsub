@@ -55,7 +55,7 @@ fastpubsub is configured using environment variables. All configuration variable
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `fastpubsub_log_level` | Logging level (debug, info, warning, error) | `info` |
+| `fastpubsub_log_level` | Logging level (debug, info, warning, error, critical) | `info` |
 | `fastpubsub_log_formatter` | Log format string | `asctime=%(asctime)s level=%(levelname)s pathname=%(pathname)s line=%(lineno)s message=%(message)s` |
 
 #### API Server Settings
@@ -83,6 +83,8 @@ fastpubsub is configured using environment variables. All configuration variable
 | `fastpubsub_cleanup_stuck_messages_lock_timeout_seconds` | Timeout for stuck message locks | `60` |
 
 ## Running with Docker
+
+> **Note for Production**: For production environments, use `--env-file` flag or a secrets management solution instead of passing credentials directly via `-e` flags to keep sensitive information secure.
 
 ### 1. Database Migration
 
