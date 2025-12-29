@@ -48,6 +48,10 @@ class Subscription(BaseModel):
     created_at: datetime
 
 
+class ListSubscriptionAPI(BaseModel):
+    data: list[Subscription]
+
+
 class Message(BaseModel):
     id: uuid.UUID
     subscription_id: str
