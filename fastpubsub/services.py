@@ -4,16 +4,18 @@ from typing import Any
 
 from psycopg.types.json import Json
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from fastpubsub.database import (
+    is_foreign_key_violation,
+    is_unique_violation,
     SessionLocal,
 )
-from fastpubsub.database import (
-    Subscription as DBSubscription,
-)
+from fastpubsub.database import Subscription as DBSubscription
 from fastpubsub.database import (
     Topic as DBTopic,
 )
+from fastpubsub.exceptions import AlreadyExistsError, NotFoundError
 from fastpubsub.models import (
     CreateSubscription,
     CreateTopic,
@@ -32,14 +34,23 @@ def create_topic(data: CreateTopic) -> Topic:
     with SessionLocal() as session:
         db_topic = DBTopic(id=data.id, created_at=utc_now())
         session.add(db_topic)
-        session.commit()
+
+        try:
+            session.commit()
+        except IntegrityError as exc:
+            if is_unique_violation(exc):
+                raise AlreadyExistsError("This topic already exists") from None
+            raise
+
         return Topic(**db_topic.to_dict())
 
 
-def get_topic(topic_id: str) -> Topic | None:
+def get_topic(topic_id: str) -> Topic:
     with SessionLocal() as session:
         db_topic = session.query(DBTopic).filter_by(id=topic_id).one_or_none()
-        return Topic(**db_topic.to_dict()) if db_topic else None
+        if db_topic is None:
+            raise NotFoundError("Topic not found") from None
+        return Topic(**db_topic.to_dict())
 
 
 def list_topic(offset: int, limit: int) -> list[Topic]:
@@ -52,7 +63,7 @@ def delete_topic(topic_id) -> None:
     with SessionLocal() as session:
         db_topic = session.query(DBTopic).filter_by(id=topic_id).one_or_none()
         if db_topic is None:
-            return
+            raise NotFoundError("Topic not found") from None
         session.delete(db_topic)
         session.commit()
 
@@ -69,14 +80,25 @@ def create_subscription(data: CreateSubscription) -> Subscription:
             created_at=utc_now(),
         )
         session.add(db_subscription)
-        session.commit()
+
+        try:
+            session.commit()
+        except IntegrityError as exc:
+            if is_unique_violation(exc):
+                raise AlreadyExistsError("This subscription already exists") from None
+            if is_foreign_key_violation(exc):
+                raise NotFoundError("Topic not found") from None
+            raise
+
         return Subscription(**db_subscription.to_dict())
 
 
-def get_subscription(subscription_id: str) -> Subscription | None:
+def get_subscription(subscription_id: str) -> Subscription:
     with SessionLocal() as session:
         db_subscription = session.query(DBSubscription).filter_by(id=subscription_id).one_or_none()
-        return Subscription(**db_subscription.to_dict()) if db_subscription else None
+        if db_subscription is None:
+            raise NotFoundError("Subscription not found") from None
+        return Subscription(**db_subscription.to_dict())
 
 
 def list_subscription(offset: int, limit: int) -> list[Subscription]:
@@ -91,7 +113,7 @@ def delete_subscription(subscription_id: str) -> None:
     with SessionLocal() as session:
         db_subscription = session.query(DBSubscription).filter_by(id=subscription_id).one_or_none()
         if db_subscription is None:
-            return
+            raise NotFoundError("Subscription not found")
         session.delete(db_subscription)
         session.commit()
 

@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     subscription_backoff_min_seconds: int = 5
     subscription_backoff_max_seconds: int = 300
 
+    # api
+    api_debug: bool = False
+    api_host: str = "0.0.0.0"
+    api_port: int = 8000
+    api_num_workers: int = 1
+
     # load .env
     model_config = SettingsConfigDict(env_file=".env", env_prefix="fastpubsub_")
 

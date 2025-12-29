@@ -45,5 +45,5 @@ USER app
 # Expose port
 EXPOSE 8000
 
-# Set entrypoint and cmd
+# Set entrypoint
 ENTRYPOINT ["python", "fastpubsub/main.py"]

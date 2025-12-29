@@ -2,27 +2,10 @@ import time
 
 import pytest
 
+from fastpubsub import services
 from fastpubsub.database import SubscriptionMessage as DBSubscriptionMessage
+from fastpubsub.exceptions import AlreadyExistsError, NotFoundError
 from fastpubsub.models import CreateSubscription, CreateTopic, SubscriptionMetrics
-from fastpubsub.services import (
-    ack_messages,
-    cleanup_acked_messages,
-    cleanup_stuck_messages,
-    consume_messages,
-    create_subscription,
-    create_topic,
-    delete_subscription,
-    delete_topic,
-    get_subscription,
-    get_topic,
-    list_dlq_messages,
-    list_subscription,
-    list_topic,
-    nack_messages,
-    publish_messages,
-    reprocess_dlq_messages,
-    subscription_metrics,
-)
 
 
 @pytest.fixture
@@ -36,40 +19,49 @@ def get_db_messages(session, subscription_id):
 
 def test_create_and_get_topic(session):
     topic_id = "my_topic"
-    topic = create_topic(data=CreateTopic(id=topic_id))
+    topic = services.create_topic(data=CreateTopic(id=topic_id))
 
     assert topic.id == topic_id
     assert topic.created_at is not None
-    assert topic == get_topic(topic_id)
-    assert get_topic("not-found-topic") is None
+    assert topic == services.get_topic(topic_id)
+
+    with pytest.raises(NotFoundError) as excinfo:
+        services.get_topic("not-found-topic")
+    assert "Topic not found" in str(excinfo.value)
+
+    with pytest.raises(AlreadyExistsError) as excinfo:
+        services.create_topic(data=CreateTopic(id=topic_id))
+    assert "This topic already exists" in str(excinfo.value)
 
 
 def test_list_topic(session):
     topic_id_1 = "a-topic"
     topic_id_2 = "b-topic"
-    topic_1 = create_topic(data=CreateTopic(id=topic_id_1))
-    topic_2 = create_topic(data=CreateTopic(id=topic_id_2))
+    topic_1 = services.create_topic(data=CreateTopic(id=topic_id_1))
+    topic_2 = services.create_topic(data=CreateTopic(id=topic_id_2))
 
-    topics = list_topic(offset=0, limit=1)
+    topics = services.list_topic(offset=0, limit=1)
 
     assert len(topics) == 1
     assert topics[0] == topic_1
 
-    topics = list_topic(offset=1, limit=1)
+    topics = services.list_topic(offset=1, limit=1)
     assert len(topics) == 1
     assert topics[0] == topic_2
 
-    topics = list_topic(offset=2, limit=1)
+    topics = services.list_topic(offset=2, limit=1)
     assert len(topics) == 0
 
 
 def test_delete_topic(session):
     topic_id = "my_topic"
-    create_topic(data=CreateTopic(id=topic_id))
+    services.create_topic(data=CreateTopic(id=topic_id))
 
-    delete_topic(topic_id)
+    services.delete_topic(topic_id)
 
-    assert get_topic(topic_id) is None
+    with pytest.raises(NotFoundError) as excinfo:
+        services.get_topic(topic_id)
+    assert "Topic not found" in str(excinfo.value)
 
 
 def test_create_and_get_subscription(session):
@@ -84,8 +76,8 @@ def test_create_and_get_subscription(session):
         backoff_max_seconds=3600,
     )
 
-    topic = create_topic(data=CreateTopic(id=topic_id))
-    subscription = create_subscription(data=data)
+    topic = services.create_topic(data=CreateTopic(id=topic_id))
+    subscription = services.create_subscription(data=data)
 
     assert subscription.id == subscription_id
     assert subscription.topic_id == topic.id
@@ -94,8 +86,21 @@ def test_create_and_get_subscription(session):
     assert subscription.backoff_min_seconds == 60
     assert subscription.backoff_max_seconds == 3600
     assert subscription.created_at is not None
-    assert subscription == get_subscription(subscription_id)
-    assert get_subscription("not-found-subscription") is None
+    assert subscription == services.get_subscription(subscription_id)
+
+    with pytest.raises(NotFoundError) as excinfo:
+        services.get_subscription("not-found-subscription")
+    assert "Subscription not found" in str(excinfo.value)
+
+    with pytest.raises(AlreadyExistsError) as excinfo:
+        services.create_subscription(data=data)
+    assert "This subscription already exists" in str(excinfo.value)
+
+    with pytest.raises(NotFoundError) as excinfo:
+        services.create_subscription(
+            data=CreateSubscription(id="sub_with_not_found_topic", topic_id="not_found")
+        )
+    assert "Topic not found" in str(excinfo.value)
 
 
 def test_list_subscription(session):
@@ -105,20 +110,20 @@ def test_list_subscription(session):
     data_1 = CreateSubscription(id=subscription_id_1, topic_id=topic_id)
     data_2 = CreateSubscription(id=subscription_id_2, topic_id=topic_id)
 
-    create_topic(data=CreateTopic(id=topic_id))
-    subscription_1 = create_subscription(data=data_1)
-    subscription_2 = create_subscription(data=data_2)
+    services.create_topic(data=CreateTopic(id=topic_id))
+    subscription_1 = services.create_subscription(data=data_1)
+    subscription_2 = services.create_subscription(data=data_2)
 
-    subscriptions = list_subscription(offset=0, limit=1)
+    subscriptions = services.list_subscription(offset=0, limit=1)
 
     assert len(subscriptions) == 1
     assert subscriptions[0] == subscription_1
 
-    subscriptions = list_subscription(offset=1, limit=1)
+    subscriptions = services.list_subscription(offset=1, limit=1)
     assert len(subscriptions) == 1
     assert subscriptions[0] == subscription_2
 
-    subscriptions = list_subscription(offset=2, limit=1)
+    subscriptions = services.list_subscription(offset=2, limit=1)
     assert len(subscriptions) == 0
 
 
@@ -127,12 +132,14 @@ def test_delete_subscription(session):
     subscription_id = "my_sub"
     data = CreateSubscription(id=subscription_id, topic_id=topic_id)
 
-    create_topic(data=CreateTopic(id=topic_id))
-    create_subscription(data=data)
+    services.create_topic(data=CreateTopic(id=topic_id))
+    services.create_subscription(data=data)
 
-    delete_subscription(subscription_id)
+    services.delete_subscription(subscription_id)
 
-    assert get_subscription(subscription_id) is None
+    with pytest.raises(NotFoundError) as excinfo:
+        services.get_subscription(subscription_id)
+    assert "Subscription not found" in str(excinfo.value)
 
 
 def test_publish_and_consume_messages_with_one_subscription(session, messages):
@@ -140,19 +147,19 @@ def test_publish_and_consume_messages_with_one_subscription(session, messages):
     subscription_id = "my_sub"
     consumer_id = "consumer_id"
 
-    create_topic(data=CreateTopic(id=topic_id))
-    create_subscription(data=CreateSubscription(id=subscription_id, topic_id=topic_id))
+    services.create_topic(data=CreateTopic(id=topic_id))
+    services.create_subscription(data=CreateSubscription(id=subscription_id, topic_id=topic_id))
 
-    result = publish_messages(topic_id, messages)
+    result = services.publish_messages(topic_id, messages)
     assert result == 3
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 3
 
-    result = ack_messages(subscription_id, [message.id for message in messages])
+    result = services.ack_messages(subscription_id, [message.id for message in messages])
     assert result is True
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 0
 
 
@@ -162,29 +169,29 @@ def test_publish_and_consume_messages_with_multiple_subscription(session, messag
     subscription_id_2 = "my_sub_2"
     consumer_id = "consumer_id"
 
-    create_topic(data=CreateTopic(id=topic_id))
-    create_subscription(data=CreateSubscription(id=subscription_id_1, topic_id=topic_id))
-    create_subscription(data=CreateSubscription(id=subscription_id_2, topic_id=topic_id))
+    services.create_topic(data=CreateTopic(id=topic_id))
+    services.create_subscription(data=CreateSubscription(id=subscription_id_1, topic_id=topic_id))
+    services.create_subscription(data=CreateSubscription(id=subscription_id_2, topic_id=topic_id))
 
-    result = publish_messages(topic_id, messages)
+    result = services.publish_messages(topic_id, messages)
     assert result == 6
 
-    messages = consume_messages(subscription_id_1, consumer_id, 10)
+    messages = services.consume_messages(subscription_id_1, consumer_id, 10)
     assert len(messages) == 3
 
-    result = ack_messages(subscription_id_1, [message.id for message in messages])
+    result = services.ack_messages(subscription_id_1, [message.id for message in messages])
     assert result is True
 
-    messages = consume_messages(subscription_id_1, consumer_id, 10)
+    messages = services.consume_messages(subscription_id_1, consumer_id, 10)
     assert len(messages) == 0
 
-    messages = consume_messages(subscription_id_2, consumer_id, 10)
+    messages = services.consume_messages(subscription_id_2, consumer_id, 10)
     assert len(messages) == 3
 
-    result = ack_messages(subscription_id_2, [message.id for message in messages])
+    result = services.ack_messages(subscription_id_2, [message.id for message in messages])
     assert result is True
 
-    messages = consume_messages(subscription_id_2, consumer_id, 10)
+    messages = services.consume_messages(subscription_id_2, consumer_id, 10)
     assert len(messages) == 0
 
 
@@ -206,13 +213,15 @@ def test_publish_and_consume_messages_with_filter(session, filter, expected_mess
     subscription_id = "my_sub"
     consumer_id = "consumer_id"
 
-    create_topic(data=CreateTopic(id=topic_id))
-    create_subscription(data=CreateSubscription(id=subscription_id, topic_id=topic_id, filter=filter))
+    services.create_topic(data=CreateTopic(id=topic_id))
+    services.create_subscription(
+        data=CreateSubscription(id=subscription_id, topic_id=topic_id, filter=filter)
+    )
 
-    result = publish_messages(topic_id, messages)
+    result = services.publish_messages(topic_id, messages)
     assert result == expected_messages
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == expected_messages
 
 
@@ -222,31 +231,31 @@ def test_publish_and_consume_messages_with_multiple_subscription_and_filter(sess
     subscription_id_2 = "my_sub_2"
     consumer_id = "consumer_id"
 
-    create_topic(data=CreateTopic(id=topic_id))
-    create_subscription(data=CreateSubscription(id=subscription_id_1, topic_id=topic_id))
-    create_subscription(
+    services.create_topic(data=CreateTopic(id=topic_id))
+    services.create_subscription(data=CreateSubscription(id=subscription_id_1, topic_id=topic_id))
+    services.create_subscription(
         data=CreateSubscription(id=subscription_id_2, topic_id=topic_id, filter={"country": ["BR"]})
     )
 
-    result = publish_messages(topic_id, messages)
+    result = services.publish_messages(topic_id, messages)
     assert result == 4
 
-    messages = consume_messages(subscription_id_1, consumer_id, 10)
+    messages = services.consume_messages(subscription_id_1, consumer_id, 10)
     assert len(messages) == 3
 
-    result = ack_messages(subscription_id_1, [message.id for message in messages])
+    result = services.ack_messages(subscription_id_1, [message.id for message in messages])
     assert result is True
 
-    messages = consume_messages(subscription_id_1, consumer_id, 10)
+    messages = services.consume_messages(subscription_id_1, consumer_id, 10)
     assert len(messages) == 0
 
-    messages = consume_messages(subscription_id_2, consumer_id, 10)
+    messages = services.consume_messages(subscription_id_2, consumer_id, 10)
     assert len(messages) == 1
 
-    result = ack_messages(subscription_id_2, [message.id for message in messages])
+    result = services.ack_messages(subscription_id_2, [message.id for message in messages])
     assert result is True
 
-    messages = consume_messages(subscription_id_2, consumer_id, 10)
+    messages = services.consume_messages(subscription_id_2, consumer_id, 10)
     assert len(messages) == 0
 
 
@@ -255,28 +264,28 @@ def test_nack(session, messages):
     subscription_id = "my_sub"
     consumer_id = "consumer_id"
 
-    create_topic(data=CreateTopic(id=topic_id))
-    create_subscription(
+    services.create_topic(data=CreateTopic(id=topic_id))
+    services.create_subscription(
         data=CreateSubscription(
             id=subscription_id, topic_id=topic_id, backoff_min_seconds=1, backoff_max_seconds=1
         )
     )
 
-    result = publish_messages(topic_id, messages)
+    result = services.publish_messages(topic_id, messages)
     assert result == 3
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 3
 
-    result = nack_messages(subscription_id, [message.id for message in messages])
+    result = services.nack_messages(subscription_id, [message.id for message in messages])
     assert result is True
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 0
 
     time.sleep(1)
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 3
 
 
@@ -285,21 +294,21 @@ def test_nack_going_to_dlq(session, messages):
     subscription_id = "my_sub"
     consumer_id = "consumer_id"
 
-    create_topic(data=CreateTopic(id=topic_id))
-    create_subscription(
+    services.create_topic(data=CreateTopic(id=topic_id))
+    services.create_subscription(
         data=CreateSubscription(id=subscription_id, topic_id=topic_id, max_delivery_attempts=1)
     )
 
-    result = publish_messages(topic_id, messages)
+    result = services.publish_messages(topic_id, messages)
     assert result == 3
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 3
 
-    result = nack_messages(subscription_id, [message.id for message in messages])
+    result = services.nack_messages(subscription_id, [message.id for message in messages])
     assert result is True
 
-    messages = list_dlq_messages(subscription_id, 10)
+    messages = services.list_dlq_messages(subscription_id, 10)
     assert len(messages) == 3
 
 
@@ -308,27 +317,27 @@ def test_reprocess_dlq_messages(session, messages):
     subscription_id = "my_sub"
     consumer_id = "consumer_id"
 
-    create_topic(data=CreateTopic(id=topic_id))
-    create_subscription(
+    services.create_topic(data=CreateTopic(id=topic_id))
+    services.create_subscription(
         data=CreateSubscription(id=subscription_id, topic_id=topic_id, max_delivery_attempts=1)
     )
 
-    result = publish_messages(topic_id, messages)
+    result = services.publish_messages(topic_id, messages)
     assert result == 3
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 3
 
-    result = nack_messages(subscription_id, [message.id for message in messages])
+    result = services.nack_messages(subscription_id, [message.id for message in messages])
     assert result is True
 
-    messages = list_dlq_messages(subscription_id, 10)
+    messages = services.list_dlq_messages(subscription_id, 10)
     assert len(messages) == 3
 
-    result = reprocess_dlq_messages(subscription_id, [message.id for message in messages])
+    result = services.reprocess_dlq_messages(subscription_id, [message.id for message in messages])
     assert result is True
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 3
 
 
@@ -337,24 +346,24 @@ def test_cleanup_stuck_messages(session, messages):
     subscription_id = "my_sub"
     consumer_id = "consumer_id"
 
-    create_topic(data=CreateTopic(id=topic_id))
-    create_subscription(data=CreateSubscription(id=subscription_id, topic_id=topic_id))
+    services.create_topic(data=CreateTopic(id=topic_id))
+    services.create_subscription(data=CreateSubscription(id=subscription_id, topic_id=topic_id))
 
-    result = publish_messages(topic_id, messages)
+    result = services.publish_messages(topic_id, messages)
     assert result == 3
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 3
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 0
 
     time.sleep(1)
 
-    result = cleanup_stuck_messages(subscription_id, 1)
+    result = services.cleanup_stuck_messages(subscription_id, 1)
     assert result is True
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 3
 
 
@@ -363,19 +372,19 @@ def test_cleanup_acked_messages(session, messages):
     subscription_id = "my_sub"
     consumer_id = "consumer_id"
 
-    create_topic(data=CreateTopic(id=topic_id))
-    create_subscription(data=CreateSubscription(id=subscription_id, topic_id=topic_id))
+    services.create_topic(data=CreateTopic(id=topic_id))
+    services.create_subscription(data=CreateSubscription(id=subscription_id, topic_id=topic_id))
 
-    result = publish_messages(topic_id, messages)
+    result = services.publish_messages(topic_id, messages)
     assert result == 3
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 3
 
-    result = ack_messages(subscription_id, [message.id for message in messages])
+    result = services.ack_messages(subscription_id, [message.id for message in messages])
     assert result is True
 
-    messages = consume_messages(subscription_id, consumer_id, 10)
+    messages = services.consume_messages(subscription_id, consumer_id, 10)
     assert len(messages) == 0
 
     db_messages = get_db_messages(session, subscription_id)
@@ -383,7 +392,7 @@ def test_cleanup_acked_messages(session, messages):
 
     time.sleep(1)
 
-    result = cleanup_acked_messages(subscription_id, 1)
+    result = services.cleanup_acked_messages(subscription_id, 1)
     assert result is True
 
     db_messages = get_db_messages(session, subscription_id)
@@ -399,22 +408,22 @@ def test_subscription_metrics(session):
         subscription_id=subscription_id, available=1, delivered=1, acked=1, dlq=1
     )
 
-    create_topic(data=CreateTopic(id=topic_id))
-    create_subscription(
+    services.create_topic(data=CreateTopic(id=topic_id))
+    services.create_subscription(
         data=CreateSubscription(id=subscription_id, topic_id=topic_id, max_delivery_attempts=1)
     )
 
-    result = publish_messages(topic_id, messages)
+    result = services.publish_messages(topic_id, messages)
     assert result == 4
 
-    messages = consume_messages(subscription_id, consumer_id, 3)
+    messages = services.consume_messages(subscription_id, consumer_id, 3)
     assert len(messages) == 3
 
-    result = ack_messages(subscription_id, [messages[0].id])
+    result = services.ack_messages(subscription_id, [messages[0].id])
     assert result is True
 
-    result = nack_messages(subscription_id, [messages[1].id])
+    result = services.nack_messages(subscription_id, [messages[1].id])
     assert result is True
 
-    metrics = subscription_metrics(subscription_id)
+    metrics = services.subscription_metrics(subscription_id)
     assert metrics == expected_metrics
