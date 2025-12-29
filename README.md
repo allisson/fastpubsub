@@ -446,6 +446,51 @@ GET /subscriptions/{id}/metrics
 - `acked`: Total acknowledged messages
 - `dlq`: Messages in the dead letter queue
 
+### 🏥 Health Checks
+
+Health check endpoints are useful for monitoring and orchestration systems like Kubernetes.
+
+#### Liveness Probe
+
+Check if the application is alive:
+
+```http
+GET /liveness
+```
+
+**Response:** `200 OK`
+```json
+{
+  "status": "alive"
+}
+```
+
+The liveness endpoint always returns a successful response if the application is running. Use this endpoint to determine if the application needs to be restarted.
+
+#### Readiness Probe
+
+Check if the application is ready to handle requests:
+
+```http
+GET /readiness
+```
+
+**Response:** `200 OK`
+```json
+{
+  "status": "ready"
+}
+```
+
+**Error Response:** `503 Service Unavailable`
+```json
+{
+  "detail": "database is down"
+}
+```
+
+The readiness endpoint checks if the database connection is healthy. Use this endpoint to determine if the application should receive traffic.
+
 ## 💡 Usage Examples
 
 ### Example 1: Simple Pub/Sub
@@ -536,6 +581,34 @@ curl "http://localhost:8000/subscriptions/email-sender/dlq"
 curl -X POST http://localhost:8000/subscriptions/email-sender/dlq/reprocess \
   -H "Content-Type: application/json" \
   -d '["550e8400-e29b-41d4-a716-446655440000"]'
+```
+
+### Example 5: Health Check Monitoring
+
+```bash
+# Check if the application is alive (for restart decisions)
+curl "http://localhost:8000/liveness"
+
+# Check if the application is ready to serve traffic
+curl "http://localhost:8000/readiness"
+```
+
+**Kubernetes example configuration:**
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /liveness
+    port: 8000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /readiness
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 5
 ```
 
 ## 🔄 Message Flow
