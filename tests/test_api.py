@@ -369,3 +369,105 @@ def test_prometheus_metrics(client):
     response = client.get("/metrics")
 
     assert response.status_code == status.HTTP_200_OK
+
+
+def test_subscription_filter_xss_sanitization(session, client):
+    """Test that XSS attacks in subscription filters are sanitized."""
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+
+    # Test XSS in filter value
+    data = {
+        "id": "xss-test-subscription",
+        "topic_id": "my-topic",
+        "filter": {"field": ["<script>alert('xss')</script>", "normal_value"]},
+    }
+
+    response = client.post("/subscriptions", json=data)
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response_data["id"] == data["id"]
+    # Verify XSS is sanitized
+    assert "<script>" not in str(response_data["filter"])
+    assert "&lt;script&gt;" in response_data["filter"]["field"][0]
+    assert "normal_value" in response_data["filter"]["field"]
+
+
+def test_subscription_filter_sql_injection_patterns(session, client):
+    """Test that SQL injection patterns in filters are sanitized."""
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+
+    # Test SQL-like patterns in filter value
+    data = {
+        "id": "sql-test-subscription",
+        "topic_id": "my-topic",
+        "filter": {"field": ["'; DROP TABLE users; --", "1' OR '1'='1"]},
+    }
+
+    response = client.post("/subscriptions", json=data)
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_201_CREATED
+    # Quotes should be HTML-encoded
+    assert "&#x27;" in response_data["filter"]["field"][0]
+    assert "&#x27;" in response_data["filter"]["field"][1]
+
+
+def test_subscription_filter_control_characters(session, client):
+    """Test that control characters in filters are removed."""
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+
+    # Test control characters in filter value
+    data = {
+        "id": "control-test-subscription",
+        "topic_id": "my-topic",
+        "filter": {"field": ["test\x00data", "clean"]},
+    }
+
+    response = client.post("/subscriptions", json=data)
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_201_CREATED
+    # Null byte should be removed
+    assert "\x00" not in response_data["filter"]["field"][0]
+    assert response_data["filter"]["field"][0] == "testdata"
+
+
+def test_subscription_filter_invalid_structure(session, client):
+    """Test that invalid filter structure is rejected."""
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+
+    # Test invalid structure (value not an array)
+    data = {
+        "id": "invalid-subscription",
+        "topic_id": "my-topic",
+        "filter": {"field": "not_an_array"},  # Invalid
+    }
+
+    response = client.post("/subscriptions", json=data)
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert "Invalid filter structure" in str(response_data)
+
+
+def test_subscription_filter_with_special_characters(session, client):
+    """Test that special characters are properly encoded."""
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+
+    data = {
+        "id": "special-chars-subscription",
+        "topic_id": "my-topic",
+        "filter": {"field1": ["a&b", "c<d", "e>f"], "field2": ['g"h', "i'j"]},
+    }
+
+    response = client.post("/subscriptions", json=data)
+    response_data = response.json()
+
+    assert response.status_code == status.HTTP_201_CREATED
+    # Check HTML entity encoding
+    assert "a&amp;b" in response_data["filter"]["field1"]
+    assert any("&lt;" in val for val in response_data["filter"]["field1"])
+    assert any("&gt;" in val for val in response_data["filter"]["field1"])
+    assert any("&quot;" in val for val in response_data["filter"]["field2"])
+    assert any("&#x27;" in val for val in response_data["filter"]["field2"])
