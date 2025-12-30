@@ -97,8 +97,8 @@ def service_unavailable_exception_handler(request: Request, exc: ServiceUnavaila
     responses={409: {"model": models.AlreadyExists}},
     tags=["topics"],
 )
-def create_topic(data: models.CreateTopic):
-    return services.create_topic(data)
+async def create_topic(data: models.CreateTopic):
+    return await services.create_topic(data)
 
 
 @app.get(
@@ -108,13 +108,13 @@ def create_topic(data: models.CreateTopic):
     responses={404: {"model": models.NotFound}},
     tags=["topics"],
 )
-def get_topic(id: str):
-    return services.get_topic(id)
+async def get_topic(id: str):
+    return await services.get_topic(id)
 
 
 @app.get("/topics", response_model=models.ListTopicAPI, status_code=status.HTTP_200_OK, tags=["topics"])
-def list_topic(offset: int = 0, limit: int = 10):
-    topics = services.list_topic(offset, limit)
+async def list_topic(offset: int = 0, limit: int = 10):
+    topics = await services.list_topic(offset, limit)
     return models.ListTopicAPI(data=topics)
 
 
@@ -124,8 +124,8 @@ def list_topic(offset: int = 0, limit: int = 10):
     responses={404: {"model": models.NotFound}},
     tags=["topics"],
 )
-def delete_topic(id: str):
-    services.delete_topic(id)
+async def delete_topic(id: str):
+    await services.delete_topic(id)
 
 
 @app.post(
@@ -134,9 +134,9 @@ def delete_topic(id: str):
     responses={404: {"model": models.NotFound}},
     tags=["topics"],
 )
-def publish_messages(id: str, data: list[dict[str, Any]]):
-    topic = services.get_topic(id)
-    return services.publish_messages(topic_id=topic.id, messages=data)
+async def publish_messages(id: str, data: list[dict[str, Any]]):
+    topic = await services.get_topic(id)
+    return await services.publish_messages(topic_id=topic.id, messages=data)
 
 
 @app.post(
@@ -146,8 +146,8 @@ def publish_messages(id: str, data: list[dict[str, Any]]):
     responses={409: {"model": models.AlreadyExists}},
     tags=["subscriptions"],
 )
-def create_subscription(data: models.CreateSubscription):
-    return services.create_subscription(data)
+async def create_subscription(data: models.CreateSubscription):
+    return await services.create_subscription(data)
 
 
 @app.get(
@@ -157,8 +157,8 @@ def create_subscription(data: models.CreateSubscription):
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
 )
-def get_subscription(id: str):
-    return services.get_subscription(id)
+async def get_subscription(id: str):
+    return await services.get_subscription(id)
 
 
 @app.get(
@@ -167,8 +167,8 @@ def get_subscription(id: str):
     status_code=status.HTTP_200_OK,
     tags=["subscriptions"],
 )
-def list_subscription(offset: int = 0, limit: int = 10):
-    subscriptions = services.list_subscription(offset, limit)
+async def list_subscription(offset: int = 0, limit: int = 10):
+    subscriptions = await services.list_subscription(offset, limit)
     return models.ListSubscriptionAPI(data=subscriptions)
 
 
@@ -178,8 +178,8 @@ def list_subscription(offset: int = 0, limit: int = 10):
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
 )
-def delete_subscription(id: str):
-    services.delete_subscription(id)
+async def delete_subscription(id: str):
+    await services.delete_subscription(id)
 
 
 @app.get(
@@ -189,9 +189,9 @@ def delete_subscription(id: str):
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
 )
-def consume_messages(id: str, consumer_id: str, batch_size: int = 10):
-    subscription = get_subscription(id)
-    messages = services.consume_messages(
+async def consume_messages(id: str, consumer_id: str, batch_size: int = 10):
+    subscription = await get_subscription(id)
+    messages = await services.consume_messages(
         subscription_id=subscription.id, consumer_id=consumer_id, batch_size=batch_size
     )
     return models.ListMessageAPI(data=messages)
@@ -203,9 +203,9 @@ def consume_messages(id: str, consumer_id: str, batch_size: int = 10):
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
 )
-def ack_messages(id: str, data: list[UUID]):
-    subscription = get_subscription(id)
-    services.ack_messages(subscription_id=subscription.id, message_ids=data)
+async def ack_messages(id: str, data: list[UUID]):
+    subscription = await get_subscription(id)
+    await services.ack_messages(subscription_id=subscription.id, message_ids=data)
 
 
 @app.post(
@@ -214,9 +214,9 @@ def ack_messages(id: str, data: list[UUID]):
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
 )
-def nack_messages(id: str, data: list[UUID]):
-    subscription = get_subscription(id)
-    services.nack_messages(subscription_id=subscription.id, message_ids=data)
+async def nack_messages(id: str, data: list[UUID]):
+    subscription = await get_subscription(id)
+    await services.nack_messages(subscription_id=subscription.id, message_ids=data)
 
 
 @app.get(
@@ -226,9 +226,9 @@ def nack_messages(id: str, data: list[UUID]):
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
 )
-def list_dlq(id: str, offset: int = 0, limit: int = 10):
-    subscription = get_subscription(id)
-    messages = services.list_dlq_messages(subscription_id=subscription.id, offset=offset, limit=limit)
+async def list_dlq(id: str, offset: int = 0, limit: int = 10):
+    subscription = await get_subscription(id)
+    messages = await services.list_dlq_messages(subscription_id=subscription.id, offset=offset, limit=limit)
     return models.ListMessageAPI(data=messages)
 
 
@@ -238,9 +238,9 @@ def list_dlq(id: str, offset: int = 0, limit: int = 10):
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
 )
-def reprocess_dlq(id: str, data: list[UUID]):
-    subscription = get_subscription(id)
-    services.reprocess_dlq_messages(subscription_id=subscription.id, message_ids=data)
+async def reprocess_dlq(id: str, data: list[UUID]):
+    subscription = await get_subscription(id)
+    await services.reprocess_dlq_messages(subscription_id=subscription.id, message_ids=data)
 
 
 @app.get(
@@ -250,13 +250,13 @@ def reprocess_dlq(id: str, data: list[UUID]):
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
 )
-def subscription_metrics(id: str):
-    subscription = get_subscription(id)
-    return services.subscription_metrics(subscription_id=subscription.id)
+async def subscription_metrics(id: str):
+    subscription = await get_subscription(id)
+    return await services.subscription_metrics(subscription_id=subscription.id)
 
 
 @app.get("/liveness", response_model=models.HealthCheck, status_code=status.HTTP_200_OK, tags=["monitoring"])
-def liveness_probe():
+async def liveness_probe():
     return models.HealthCheck(status="alive")
 
 
@@ -267,9 +267,9 @@ def liveness_probe():
     responses={503: {"model": models.ServiceUnavailable}},
     tags=["monitoring"],
 )
-def readiness_probe():
+async def readiness_probe():
     try:
-        is_db_ok = services.database_ping()
+        is_db_ok = await services.database_ping()
         if not is_db_ok:
             raise ServiceUnavailable("database is down")
     except Exception:
