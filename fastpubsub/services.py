@@ -43,7 +43,7 @@ async def _get_entity(session, model, entity_id: str, error_message: str):
 async def _delete_entity(session, model, entity_id: str, error_message: str) -> None:
     """Generic helper to delete an entity by ID or raise NotFoundError."""
     entity = await _get_entity(session, model, entity_id, error_message)
-    session.delete(entity)
+    await session.delete(entity)
     await session.commit()
 
 
@@ -131,7 +131,9 @@ async def create_subscription(data: CreateSubscription) -> Subscription:
 
 async def get_subscription(subscription_id: str) -> Subscription:
     async with SessionLocal() as session:
-        db_subscription = await _get_entity(session, DBSubscription, subscription_id, "Subscription not found")
+        db_subscription = await _get_entity(
+            session, DBSubscription, subscription_id, "Subscription not found"
+        )
         return Subscription(**db_subscription.to_dict())
 
 

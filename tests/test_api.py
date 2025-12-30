@@ -52,7 +52,7 @@ def test_create_topic(session, client):
 
 
 def test_get_topic(session, client):
-    sync_sync_create_topic(data=CreateTopic(id="my-topic"))
+    sync_create_topic(data=CreateTopic(id="my-topic"))
 
     response = client.get("/topics/my-topic")
     response_data = response.json()
@@ -268,12 +268,14 @@ def test_nack_messages(session, client):
 
 def test_list_dlq(session, client):
     sync_create_topic(data=CreateTopic(id="my-topic"))
-    create_subscription(
+    sync_create_subscription(
         data=CreateSubscription(id="my-subscription", topic_id="my-topic", max_delivery_attempts=1)
     )
     sync_publish_messages(topic_id="my-topic", messages=[{"id": 1}])
     messages = sync_consume_messages(subscription_id="my-subscription", consumer_id="id", batch_size=1)
-    sync_nack_messages(subscription_id="my-subscription", message_ids=[str(message.id) for message in messages])
+    sync_nack_messages(
+        subscription_id="my-subscription", message_ids=[str(message.id) for message in messages]
+    )
 
     response = client.get("/subscriptions/my-subscription/dlq", params={"offset": 0, "limit": 1})
     response_data = response.json()
@@ -291,7 +293,7 @@ def test_list_dlq(session, client):
 
 def test_reprocess_dlq(session, client):
     sync_create_topic(data=CreateTopic(id="my-topic"))
-    create_subscription(
+    sync_create_subscription(
         data=CreateSubscription(id="my-subscription", topic_id="my-topic", max_delivery_attempts=1)
     )
     sync_publish_messages(topic_id="my-topic", messages=[{"id": 1}])

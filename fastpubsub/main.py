@@ -1,4 +1,5 @@
 import asyncio
+
 import typer
 
 from fastpubsub.api import run_server

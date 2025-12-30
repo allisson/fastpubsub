@@ -5,7 +5,7 @@ from alembic.config import command, Config
 from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from fastpubsub.config import settings
@@ -79,7 +79,9 @@ async def run_migrations(command_type: str = "upgrade", revision: str = "head") 
         extra=dict(ini_location=ini_location, script_location=script_location),
     )
     # Convert async URL to sync URL for Alembic (Alembic doesn't support async)
-    sync_url = settings.database_url.replace("+asyncpg://", "://").replace("postgresql+psycopg://", "postgresql+psycopg://")
+    sync_url = settings.database_url.replace("+asyncpg://", "://").replace(
+        "postgresql+psycopg://", "postgresql+psycopg://"
+    )
     alembic_cfg = Config(ini_location)
     alembic_cfg.set_main_option("script_location", str(script_location))
     alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
