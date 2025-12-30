@@ -6,7 +6,7 @@
 
 ## 📖 Overview
 
-**fastpubsub** is a lightweight publish-subscribe messaging system built with FastAPI and PostgreSQL. It provides a simple HTTP API for message publishing and subscription management with powerful features like message filtering, delivery guarantees, dead-letter queues, and automatic retries with exponential backoff.
+**fastpubsub** is a lightweight publish-subscribe messaging system built with FastAPI and PostgreSQL. It provides a simple HTTP API for message publishing and subscription management with powerful features like message filtering, delivery guarantees, dead-letter queues, and automatic retries with exponential backoff. The system is built with asyncio for efficient concurrent operations and uses SQLAlchemy's async engine with psycopg's native async support.
 
 ### ✨ Key Features
 
@@ -21,10 +21,10 @@
 
 ## 🏗️ Architecture
 
-fastpubsub uses PostgreSQL as its backend, leveraging stored procedures and JSONB capabilities for high-performance message routing and filtering. The system consists of:
+fastpubsub uses PostgreSQL as its backend, leveraging stored procedures and JSONB capabilities for high-performance message routing and filtering. The system is built with asyncio for efficient concurrent operations, using SQLAlchemy's async engine with psycopg's native async support. The architecture consists of:
 
-- **API Server**: RESTful HTTP API for all operations
-- **Database**: PostgreSQL with custom functions for message management
+- **API Server**: Asynchronous RESTful HTTP API for all operations
+- **Database**: PostgreSQL with custom functions for message management, accessed via async SQLAlchemy
 - **Cleanup Workers**: Background jobs for message maintenance
 
 ## 🐳 Quick Start with Docker
