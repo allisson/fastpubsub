@@ -78,13 +78,11 @@ async def run_migrations(command_type: str = "upgrade", revision: str = "head") 
         "running db migrations",
         extra=dict(ini_location=ini_location, script_location=script_location),
     )
-    # Convert async URL to sync URL for Alembic (Alembic doesn't support async)
-    sync_url = settings.database_url.replace("+asyncpg://", "://").replace(
-        "postgresql+psycopg://", "postgresql+psycopg://"
-    )
+    # Use the database URL as-is for Alembic
+    # psycopg works fine with Alembic in synchronous mode
     alembic_cfg = Config(ini_location)
     alembic_cfg.set_main_option("script_location", str(script_location))
-    alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
+    alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url)
 
     match command_type:
         case "upgrade":
