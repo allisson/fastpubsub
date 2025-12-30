@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from fastpubsub.config import settings
+from fastpubsub.sanitizer import sanitize_filter
 
 regex_for_id = "^[a-zA-Z0-9-._]+$"
 
@@ -40,6 +41,12 @@ class CreateSubscription(BaseModel):
     max_delivery_attempts: int = Field(default=settings.subscription_max_attempts, ge=1)
     backoff_min_seconds: int = Field(default=settings.subscription_backoff_min_seconds, ge=1)
     backoff_max_seconds: int = Field(default=settings.subscription_backoff_max_seconds, ge=1)
+
+    @field_validator("filter")
+    @classmethod
+    def sanitize_filter_field(cls, v):
+        """Sanitize filter to prevent SQL and XSS injection attacks."""
+        return sanitize_filter(v)
 
 
 class Subscription(BaseModel):
