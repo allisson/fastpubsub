@@ -1,6 +1,7 @@
 import time
 
 import pytest
+from sqlalchemy import select
 
 from fastpubsub import services
 from fastpubsub.database import SubscriptionMessage as DBSubscriptionMessage
@@ -14,8 +15,6 @@ def messages():
 
 
 async def get_db_messages(session, subscription_id):
-    from sqlalchemy import select
-
     result = await session.execute(select(DBSubscriptionMessage).filter_by(subscription_id=subscription_id))
     return result.scalars().all()
 

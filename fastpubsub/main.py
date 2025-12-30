@@ -22,9 +22,9 @@ async def _log_command_execution_async(command_name: str, func, *args, **kwargs)
 
 @cli.command("db-migrate")
 def run_migrations_command() -> None:
-    logger.info("Starting db-migrate command")
-    asyncio.run(run_migrations(command_type="upgrade", revision="head"))
-    logger.info("Finishing db-migrate command")
+    asyncio.run(
+        _log_command_execution_async("db-migrate", run_migrations, command_type="upgrade", revision="head")
+    )
 
 
 @cli.command("server")

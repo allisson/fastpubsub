@@ -15,24 +15,8 @@ from fastpubsub.services import (
 
 
 # Helper functions to run async services in sync tests
-def sync_create_topic(data):
-    return asyncio.run(create_topic(data))
-
-
-def sync_create_subscription(data):
-    return asyncio.run(create_subscription(data))
-
-
-def sync_publish_messages(topic_id, messages):
-    return asyncio.run(publish_messages(topic_id, messages))
-
-
-def sync_consume_messages(subscription_id, consumer_id, batch_size):
-    return asyncio.run(consume_messages(subscription_id, consumer_id, batch_size))
-
-
-def sync_nack_messages(subscription_id, message_ids):
-    return asyncio.run(nack_messages(subscription_id, message_ids))
+def sync_call_service(service, *args, **kwargs):
+    return asyncio.run(service(*args, **kwargs))
 
 
 def test_create_topic(session, client):
@@ -52,7 +36,7 @@ def test_create_topic(session, client):
 
 
 def test_get_topic(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
 
     response = client.get("/topics/my-topic")
     response_data = response.json()
@@ -71,7 +55,7 @@ def test_get_topic(session, client):
 def test_list_topic(session, client):
     data = [{"id": "my-topic-1"}, {"id": "my-topic-2"}]
     for topic_data in data:
-        sync_create_topic(data=CreateTopic(id=topic_data["id"]))
+        sync_call_service(create_topic, data=CreateTopic(id=topic_data["id"]))
 
     response = client.get("/topics")
     response_data = response.json()
@@ -97,7 +81,7 @@ def test_list_topic(session, client):
 
 
 def test_delete_topic(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
 
     response = client.delete("/topics/my-topic")
 
@@ -111,7 +95,7 @@ def test_delete_topic(session, client):
 
 
 def test_publish_messages(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
 
     data = [{"id": 1}, {"id": 2}]
 
@@ -127,7 +111,7 @@ def test_publish_messages(session, client):
 
 
 def test_create_subscription(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
     data = {"id": "my-subscription", "topic_id": "my-topic"}
 
     response = client.post("/subscriptions", json=data)
@@ -145,8 +129,8 @@ def test_create_subscription(session, client):
 
 
 def test_get_subscription(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
-    sync_create_subscription(data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_service(create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
 
     response = client.get("/subscriptions/my-subscription")
     response_data = response.json()
@@ -164,10 +148,12 @@ def test_get_subscription(session, client):
 
 
 def test_list_subscription(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
     data = [{"id": "my-subscription-1"}, {"id": "my-subscription-2"}]
     for subscription_data in data:
-        sync_create_subscription(data=CreateSubscription(id=subscription_data["id"], topic_id="my-topic"))
+        sync_call_service(
+            create_subscription, data=CreateSubscription(id=subscription_data["id"], topic_id="my-topic")
+        )
 
     response = client.get("/subscriptions")
     response_data = response.json()
@@ -193,8 +179,8 @@ def test_list_subscription(session, client):
 
 
 def test_delete_subscription(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
-    sync_create_subscription(data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_service(create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
 
     response = client.delete("/subscriptions/my-subscription")
 
@@ -208,9 +194,9 @@ def test_delete_subscription(session, client):
 
 
 def test_consume_messages(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
-    sync_create_subscription(data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
-    sync_publish_messages(topic_id="my-topic", messages=[{"id": 1}])
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_service(create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+    sync_call_service(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
 
     response = client.get(
         "/subscriptions/my-subscription/messages", params={"consumer_id": "id", "batch_size": 1}
@@ -231,10 +217,12 @@ def test_consume_messages(session, client):
 
 
 def test_ack_messages(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
-    sync_create_subscription(data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
-    sync_publish_messages(topic_id="my-topic", messages=[{"id": 1}])
-    messages = sync_consume_messages(subscription_id="my-subscription", consumer_id="id", batch_size=1)
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_service(create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+    sync_call_service(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
+    messages = sync_call_service(
+        consume_messages, subscription_id="my-subscription", consumer_id="id", batch_size=1
+    )
     data = [str(message.id) for message in messages]
 
     response = client.post("/subscriptions/my-subscription/acks", json=data)
@@ -249,10 +237,12 @@ def test_ack_messages(session, client):
 
 
 def test_nack_messages(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
-    sync_create_subscription(data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
-    sync_publish_messages(topic_id="my-topic", messages=[{"id": 1}])
-    messages = sync_consume_messages(subscription_id="my-subscription", consumer_id="id", batch_size=1)
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_service(create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+    sync_call_service(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
+    messages = sync_call_service(
+        consume_messages, subscription_id="my-subscription", consumer_id="id", batch_size=1
+    )
     data = [str(message.id) for message in messages]
 
     response = client.post("/subscriptions/my-subscription/nacks", json=data)
@@ -267,14 +257,19 @@ def test_nack_messages(session, client):
 
 
 def test_list_dlq(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
-    sync_create_subscription(
-        data=CreateSubscription(id="my-subscription", topic_id="my-topic", max_delivery_attempts=1)
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_service(
+        create_subscription,
+        data=CreateSubscription(id="my-subscription", topic_id="my-topic", max_delivery_attempts=1),
     )
-    sync_publish_messages(topic_id="my-topic", messages=[{"id": 1}])
-    messages = sync_consume_messages(subscription_id="my-subscription", consumer_id="id", batch_size=1)
-    sync_nack_messages(
-        subscription_id="my-subscription", message_ids=[str(message.id) for message in messages]
+    sync_call_service(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
+    messages = sync_call_service(
+        consume_messages, subscription_id="my-subscription", consumer_id="id", batch_size=1
+    )
+    sync_call_service(
+        nack_messages,
+        subscription_id="my-subscription",
+        message_ids=[str(message.id) for message in messages],
     )
 
     response = client.get("/subscriptions/my-subscription/dlq", params={"offset": 0, "limit": 1})
@@ -292,18 +287,23 @@ def test_list_dlq(session, client):
 
 
 def test_reprocess_dlq(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
-    sync_create_subscription(
-        data=CreateSubscription(id="my-subscription", topic_id="my-topic", max_delivery_attempts=1)
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_service(
+        create_subscription,
+        data=CreateSubscription(id="my-subscription", topic_id="my-topic", max_delivery_attempts=1),
     )
-    sync_publish_messages(topic_id="my-topic", messages=[{"id": 1}])
-    messages = sync_consume_messages(subscription_id="my-subscription", consumer_id="id", batch_size=1)
+    sync_call_service(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
+    messages = sync_call_service(
+        consume_messages, subscription_id="my-subscription", consumer_id="id", batch_size=1
+    )
     message = messages[0]
-    sync_nack_messages(subscription_id="my-subscription", message_ids=[str(message.id)])
+    sync_call_service(nack_messages, subscription_id="my-subscription", message_ids=[str(message.id)])
     data = [str(message.id)]
 
     response = client.post("/subscriptions/my-subscription/dlq/reprocess", json=data)
-    messages = sync_consume_messages(subscription_id="my-subscription", consumer_id="id", batch_size=1)
+    messages = sync_call_service(
+        consume_messages, subscription_id="my-subscription", consumer_id="id", batch_size=1
+    )
 
     assert response.status_code == status.HTTP_204_NO_CONTENT
     assert len(messages) == 1
@@ -317,8 +317,8 @@ def test_reprocess_dlq(session, client):
 
 
 def test_subscription_metrics(session, client):
-    sync_create_topic(data=CreateTopic(id="my-topic"))
-    sync_create_subscription(data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_service(create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
 
     response = client.get("/subscriptions/my-subscription/metrics")
     response_data = response.json()
