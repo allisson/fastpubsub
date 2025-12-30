@@ -45,7 +45,7 @@ class TestSanitizeString:
 
     def test_sanitize_quotes(self):
         """Test that quotes are properly escaped."""
-        result = sanitize_string('"quoted" and \'single\'')
+        result = sanitize_string("\"quoted\" and 'single'")
         assert "&quot;" in result
         assert "&#x27;" in result
 
@@ -59,11 +59,11 @@ class TestSanitizeString:
         # Null byte
         result = sanitize_string("hello\x00world")
         assert result == "helloworld"
-        
+
         # Other control characters
         result = sanitize_string("test\x01\x02\x03data")
         assert result == "testdata"
-        
+
         # Newlines and tabs should be preserved
         result = sanitize_string("line1\nline2\ttab")
         assert "\n" in result
@@ -162,7 +162,7 @@ class TestSanitizeFilter:
         """Test that XSS in filter values is sanitized."""
         input_filter = {"field": ["<script>alert('xss')</script>", "normal"]}
         result = sanitize_filter(input_filter)
-        
+
         assert "field" in result
         assert len(result["field"]) == 2
         assert "&lt;script&gt;" in result["field"][0]
@@ -173,7 +173,7 @@ class TestSanitizeFilter:
         """Test that XSS in filter keys is sanitized."""
         input_filter = {"<script>": ["value"]}
         result = sanitize_filter(input_filter)
-        
+
         # Key should be sanitized
         assert "<script>" not in result
         assert "&lt;script&gt;" in result
@@ -201,10 +201,10 @@ class TestSanitizeFilter:
         """Test that invalid filter structure raises ValueError."""
         with pytest.raises(ValueError, match="Invalid filter structure"):
             sanitize_filter({"field": "not an array"})
-        
+
         with pytest.raises(ValueError, match="Invalid filter structure"):
             sanitize_filter({"field": [{"nested": "object"}]})
-        
+
         with pytest.raises(ValueError, match="Invalid filter structure"):
             sanitize_filter("not a dict")
 
@@ -219,7 +219,7 @@ class TestSanitizeFilter:
             ]
         }
         result = sanitize_filter(input_filter)
-        
+
         # Should be treated as text values, quotes encoded
         assert "field" in result
         assert len(result["field"]) == 3
@@ -236,7 +236,7 @@ class TestSanitizeFilter:
             "age": [25, 30],
         }
         result = sanitize_filter(input_filter)
-        
+
         assert "country" in result
         assert "status" in result
         assert "age" in result
@@ -254,7 +254,7 @@ class TestSanitizeFilter:
         """Test handling of various special characters."""
         input_filter = {"field": ["a&b", "c<d", "e>f", 'g"h', "i'j"]}
         result = sanitize_filter(input_filter)
-        
+
         assert result["field"][0] == "a&amp;b"
         assert "&lt;" in result["field"][1]
         assert "&gt;" in result["field"][2]
