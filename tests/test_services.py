@@ -76,7 +76,7 @@ async def test_create_and_get_subscription(session):
     data = CreateSubscription(
         id=subscription_id,
         topic_id=topic_id,
-        filter={"field": "value"},
+        filter={"field": ["value"]},
         max_delivery_attempts=10,
         backoff_min_seconds=60,
         backoff_max_seconds=3600,
@@ -87,7 +87,7 @@ async def test_create_and_get_subscription(session):
 
     assert subscription.id == subscription_id
     assert subscription.topic_id == topic.id
-    assert subscription.filter == {"field": "value"}
+    assert subscription.filter == {"field": ["value"]}
     assert subscription.max_delivery_attempts == 10
     assert subscription.backoff_min_seconds == 60
     assert subscription.backoff_max_seconds == 3600
@@ -211,7 +211,6 @@ async def test_publish_and_consume_messages_with_multiple_subscription(session, 
     [
         ({}, 3),
         (None, 3),
-        ({"country": "BR"}, 3),  # invalid filter format
         ({"other_field": ["other_value"]}, 3),
         ({"country": ["BR"]}, 1),
         ({"country": ["BR", "PL"]}, 1),
