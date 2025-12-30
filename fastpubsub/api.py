@@ -1,8 +1,8 @@
 import time
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid7
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, ORJSONResponse
 from gunicorn.app.base import BaseApplication
@@ -41,7 +41,8 @@ Instrumentator().instrument(app).expose(app)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    start_time = time.time()
+    start_time = time.perf_counter()
+    request_id = str(uuid7())
     logger.info(
         "request",
         extra={
@@ -51,9 +52,22 @@ async def log_requests(request: Request, call_next):
         },
     )
 
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+    except Exception as exc:
+        process_time = time.perf_counter() - start_time
+        logger.error(
+            "request_failed",
+            extra={
+                "request_id": request_id,
+                "error": str(exc),
+                "time": f"{process_time:.4f}s",
+            },
+        )
+        raise
 
-    end_time = time.time()
+    end_time = time.perf_counter()
     process_time = end_time - start_time
     logger.info(
         "response",
@@ -96,6 +110,7 @@ def service_unavailable_exception_handler(request: Request, exc: ServiceUnavaila
     status_code=status.HTTP_201_CREATED,
     responses={409: {"model": models.AlreadyExists}},
     tags=["topics"],
+    summary="Create a new topic",
 )
 async def create_topic(data: models.CreateTopic):
     return await services.create_topic(data)
@@ -107,13 +122,20 @@ async def create_topic(data: models.CreateTopic):
     status_code=status.HTTP_200_OK,
     responses={404: {"model": models.NotFound}},
     tags=["topics"],
+    summary="Get a topic",
 )
 async def get_topic(id: str):
     return await services.get_topic(id)
 
 
-@app.get("/topics", response_model=models.ListTopicAPI, status_code=status.HTTP_200_OK, tags=["topics"])
-async def list_topic(offset: int = 0, limit: int = 10):
+@app.get(
+    "/topics",
+    response_model=models.ListTopicAPI,
+    status_code=status.HTTP_200_OK,
+    tags=["topics"],
+    summary="List topics",
+)
+async def list_topic(offset: int = Query(default=0, ge=0), limit: int = Query(default=10, ge=1, le=100)):
     topics = await services.list_topic(offset, limit)
     return models.ListTopicAPI(data=topics)
 
@@ -123,6 +145,7 @@ async def list_topic(offset: int = 0, limit: int = 10):
     status_code=status.HTTP_204_NO_CONTENT,
     responses={404: {"model": models.NotFound}},
     tags=["topics"],
+    summary="Delete a topic",
 )
 async def delete_topic(id: str):
     await services.delete_topic(id)
@@ -133,6 +156,7 @@ async def delete_topic(id: str):
     status_code=status.HTTP_204_NO_CONTENT,
     responses={404: {"model": models.NotFound}},
     tags=["topics"],
+    summary="Post messages",
 )
 async def publish_messages(id: str, data: list[dict[str, Any]]):
     topic = await services.get_topic(id)
@@ -145,6 +169,7 @@ async def publish_messages(id: str, data: list[dict[str, Any]]):
     status_code=status.HTTP_201_CREATED,
     responses={409: {"model": models.AlreadyExists}},
     tags=["subscriptions"],
+    summary="Create a subscription",
 )
 async def create_subscription(data: models.CreateSubscription):
     return await services.create_subscription(data)
@@ -156,6 +181,7 @@ async def create_subscription(data: models.CreateSubscription):
     status_code=status.HTTP_200_OK,
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
+    summary="Get a subscription",
 )
 async def get_subscription(id: str):
     return await services.get_subscription(id)
@@ -166,8 +192,11 @@ async def get_subscription(id: str):
     response_model=models.ListSubscriptionAPI,
     status_code=status.HTTP_200_OK,
     tags=["subscriptions"],
+    summary="List subscriptions",
 )
-async def list_subscription(offset: int = 0, limit: int = 10):
+async def list_subscription(
+    offset: int = Query(default=0, ge=0), limit: int = Query(default=10, ge=1, le=100)
+):
     subscriptions = await services.list_subscription(offset, limit)
     return models.ListSubscriptionAPI(data=subscriptions)
 
@@ -177,6 +206,7 @@ async def list_subscription(offset: int = 0, limit: int = 10):
     status_code=status.HTTP_204_NO_CONTENT,
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
+    summary="Delete subscription",
 )
 async def delete_subscription(id: str):
     await services.delete_subscription(id)
@@ -188,8 +218,9 @@ async def delete_subscription(id: str):
     status_code=status.HTTP_200_OK,
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
+    summary="Get messages",
 )
-async def consume_messages(id: str, consumer_id: str, batch_size: int = 10):
+async def consume_messages(id: str, consumer_id: str, batch_size: int = Query(default=10, ge=1, le=100)):
     subscription = await get_subscription(id)
     messages = await services.consume_messages(
         subscription_id=subscription.id, consumer_id=consumer_id, batch_size=batch_size
@@ -202,6 +233,7 @@ async def consume_messages(id: str, consumer_id: str, batch_size: int = 10):
     status_code=status.HTTP_204_NO_CONTENT,
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
+    summary="Ack messages",
 )
 async def ack_messages(id: str, data: list[UUID]):
     subscription = await get_subscription(id)
@@ -213,6 +245,7 @@ async def ack_messages(id: str, data: list[UUID]):
     status_code=status.HTTP_204_NO_CONTENT,
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
+    summary="Nack messages",
 )
 async def nack_messages(id: str, data: list[UUID]):
     subscription = await get_subscription(id)
@@ -225,8 +258,11 @@ async def nack_messages(id: str, data: list[UUID]):
     status_code=status.HTTP_200_OK,
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
+    summary="List dlq messages",
 )
-async def list_dlq(id: str, offset: int = 0, limit: int = 10):
+async def list_dlq(
+    id: str, offset: int = Query(default=0, ge=0), limit: int = Query(default=10, ge=1, le=100)
+):
     subscription = await get_subscription(id)
     messages = await services.list_dlq_messages(subscription_id=subscription.id, offset=offset, limit=limit)
     return models.ListMessageAPI(data=messages)
@@ -237,6 +273,7 @@ async def list_dlq(id: str, offset: int = 0, limit: int = 10):
     status_code=status.HTTP_204_NO_CONTENT,
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
+    summary="Reprocess dlq messages",
 )
 async def reprocess_dlq(id: str, data: list[UUID]):
     subscription = await get_subscription(id)
@@ -249,13 +286,20 @@ async def reprocess_dlq(id: str, data: list[UUID]):
     status_code=status.HTTP_200_OK,
     responses={404: {"model": models.NotFound}},
     tags=["subscriptions"],
+    summary="Get subscription metrics",
 )
 async def subscription_metrics(id: str):
     subscription = await get_subscription(id)
     return await services.subscription_metrics(subscription_id=subscription.id)
 
 
-@app.get("/liveness", response_model=models.HealthCheck, status_code=status.HTTP_200_OK, tags=["monitoring"])
+@app.get(
+    "/liveness",
+    response_model=models.HealthCheck,
+    status_code=status.HTTP_200_OK,
+    tags=["monitoring"],
+    summary="Liveness probe",
+)
 async def liveness_probe():
     return models.HealthCheck(status="alive")
 
@@ -266,6 +310,7 @@ async def liveness_probe():
     status_code=status.HTTP_200_OK,
     responses={503: {"model": models.ServiceUnavailable}},
     tags=["monitoring"],
+    summary="Readiness probe",
 )
 async def readiness_probe():
     try:
