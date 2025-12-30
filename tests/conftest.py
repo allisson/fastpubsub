@@ -1,32 +1,30 @@
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
+from sqlalchemy import delete
 
 from fastpubsub.api import app
 from fastpubsub.database import engine, run_migrations, SessionLocal, Subscription, SubscriptionMessage, Topic
 
 
-@pytest.fixture(scope="session")
-def connection():
-    connection = engine.connect()
-    run_migrations(command_type="upgrade", revision="head")
-
-    yield connection
-
-    run_migrations(command_type="downgrade", revision="-1")
-    connection.close()
+@pytest_asyncio.fixture(scope="session")
+async def async_engine():
+    """Create an async engine for testing."""
+    await run_migrations(command_type="upgrade", revision="head")
+    yield engine
+    await run_migrations(command_type="downgrade", revision="-1")
+    await engine.dispose()
 
 
-@pytest.fixture(scope="function")
-def session(connection):
-    session = SessionLocal(bind=connection)
-
-    yield session
-
-    session.query(Topic).delete()
-    session.query(Subscription).delete()
-    session.query(SubscriptionMessage).delete()
-    session.commit()
-    session.close()
+@pytest_asyncio.fixture(scope="function")
+async def session(async_engine):
+    async with SessionLocal() as sess:
+        yield sess
+        # Clean up after each test
+        await sess.execute(delete(SubscriptionMessage))
+        await sess.execute(delete(Subscription))
+        await sess.execute(delete(Topic))
+        await sess.commit()
 
 
 @pytest.fixture

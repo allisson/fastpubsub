@@ -2,23 +2,24 @@ from pathlib import Path
 
 import sqlalchemy as sa
 from alembic.config import command, Config
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
 
 from fastpubsub.config import settings
 from fastpubsub.logger import get_logger
 
 logger = get_logger(__name__)
-engine = create_engine(
+engine = create_async_engine(
     settings.database_url,
     echo=settings.database_echo,
     pool_pre_ping=settings.database_pool_pre_ping,
     pool_size=settings.database_pool_size,
     max_overflow=settings.database_max_overflow,
 )
-SessionLocal = sessionmaker(bind=engine)
+SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
 class Base(DeclarativeBase):
@@ -69,7 +70,7 @@ class SubscriptionMessage(Base):
         return f"SubscriptionMessage(id={self.id}, subscription_id={self.subscription_id})"
 
 
-def run_migrations(command_type: str = "upgrade", revision: str = "head") -> None:
+async def run_migrations(command_type: str = "upgrade", revision: str = "head") -> None:
     parent_path = Path(__file__).parents[1]
     script_location = parent_path.joinpath(Path("migrations"))
     ini_location = parent_path.joinpath(Path("alembic.ini"))
@@ -77,6 +78,8 @@ def run_migrations(command_type: str = "upgrade", revision: str = "head") -> Non
         "running db migrations",
         extra=dict(ini_location=ini_location, script_location=script_location),
     )
+    # Use the database URL as-is for Alembic
+    # psycopg works fine with Alembic in synchronous mode
     alembic_cfg = Config(ini_location)
     alembic_cfg.set_main_option("script_location", str(script_location))
     alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url)
