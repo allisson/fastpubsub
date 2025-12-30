@@ -37,9 +37,9 @@ class CreateSubscription(BaseModel):
     id: str = Field(..., pattern=regex_for_id, max_length=128)
     topic_id: str = Field(..., pattern=regex_for_id, max_length=128)
     filter: dict | None = None
-    max_delivery_attempts: int = Field(default=settings.subscription_max_attempts)
-    backoff_min_seconds: int = Field(default=settings.subscription_backoff_min_seconds)
-    backoff_max_seconds: int = Field(default=settings.subscription_backoff_max_seconds)
+    max_delivery_attempts: int = Field(default=settings.subscription_max_attempts, ge=1)
+    backoff_min_seconds: int = Field(default=settings.subscription_backoff_min_seconds, ge=1)
+    backoff_max_seconds: int = Field(default=settings.subscription_backoff_max_seconds, ge=1)
 
 
 class Subscription(BaseModel):
