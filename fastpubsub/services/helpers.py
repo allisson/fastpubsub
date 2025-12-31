@@ -30,10 +30,9 @@ async def _delete_entity(session, model, entity_id: str, error_message: str) -> 
 async def _execute_sql_command(query: str, params: dict) -> bool:
     """Generic helper to execute SQL commands.
 
-    Executes a SQL command and returns True if exactly one row was affected.
-    This is appropriate for commands that are expected to affect a single row,
-    such as message acknowledgment operations. Commands that may legitimately
-    affect 0 or multiple rows should handle the return value accordingly.
+    Executes a SQL command and returns True if exactly one row was affected,
+    False otherwise. This is used for message acknowledgment and similar
+    operations where exactly one row is expected to be modified.
 
     Args:
         query: SQL query to execute

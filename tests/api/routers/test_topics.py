@@ -1,14 +1,8 @@
-import asyncio
-
 from fastapi import status
 
 from fastpubsub.models import CreateTopic
 from fastpubsub.services import create_topic
-
-
-# Helper functions to run async services in sync tests
-def sync_call_service(service, *args, **kwargs):
-    return asyncio.run(service(*args, **kwargs))
+from tests.helpers import sync_call_service
 
 
 def test_create_topic(session, client):
