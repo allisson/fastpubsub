@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # api
     api_debug: bool = False
-    api_host: IPvAnyAddress = "0.0.0.0"
+    api_host: IPvAnyAddress = Field(default="0.0.0.0")
     api_port: int = Field(default=8000, ge=1)
     api_num_workers: int = Field(default=1, ge=1)
 
