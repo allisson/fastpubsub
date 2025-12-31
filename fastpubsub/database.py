@@ -53,7 +53,7 @@ class Subscription(Base):
 
 
 class SubscriptionMessage(Base):
-    id = sa.Column(sa.BigInteger, primary_key=True)
+    id = sa.Column(postgresql.UUID, primary_key=True)
     subscription_id = sa.Column(sa.Text, nullable=False)
     payload = sa.Column(postgresql.JSONB, nullable=False)
     status = sa.Column(sa.Text, nullable=False)
