@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     def check_subscription_backoff_order(self) -> "Settings":
         if self.subscription_backoff_max_seconds < self.subscription_backoff_min_seconds:
             raise ValueError(
-                "subscription_backoff_max_seconds must be greater than subscription_backoff_min_seconds"
+                "subscription_backoff_max_seconds must be greater than or equal to subscription_backoff_min_seconds"
             )
         return self
 
