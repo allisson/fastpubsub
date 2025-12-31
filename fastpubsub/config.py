@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="fastpubsub_")
 
     @field_validator("database_url")
-    def database_url_must_startswith(cls, v: str):
+    def validate_database_url_format(cls, v: str):
         if not v.startswith("postgresql+psycopg://"):
             raise ValueError("must start with 'postgresql+psycopg://'")
         return v
