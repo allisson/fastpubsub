@@ -2,7 +2,7 @@ import asyncio
 
 import typer
 
-from fastpubsub.api import run_server
+from fastpubsub.api import app, run_server
 from fastpubsub.config import settings
 from fastpubsub.database import run_migrations
 from fastpubsub.logger import get_logger
@@ -31,7 +31,7 @@ def run_migrations_command() -> None:
 def run_server_command() -> None:
     # Server is a long-running command, so we only log the start
     logger.info("Starting server command")
-    run_server()
+    run_server(app)
 
 
 @cli.command("cleanup_acked_messages")
