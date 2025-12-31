@@ -3,7 +3,7 @@ import asyncio
 from fastapi import status
 
 from fastpubsub.models import CreateTopic
-from fastpubsub.services import create_topic, publish_messages
+from fastpubsub.services import create_topic
 
 
 # Helper functions to run async services in sync tests
