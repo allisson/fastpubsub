@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic.networks import IPvAnyAddress
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -50,6 +50,14 @@ class Settings(BaseSettings):
         if not v.startswith("postgresql+psycopg://"):
             raise ValueError("must start with 'postgresql+psycopg://'")
         return v
+
+    @model_validator(mode="after")
+    def check_subscription_backoff_order(self) -> "Settings":
+        if self.subscription_backoff_max_seconds < self.subscription_backoff_min_seconds:
+            raise ValueError(
+                "subscription_backoff_max_seconds must be greater than subscription_backoff_min_seconds"
+            )
+        return self
 
 
 settings = Settings()
