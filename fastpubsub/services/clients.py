@@ -127,7 +127,7 @@ async def decode_jwt_client_token(access_token: str, auth_enabled: bool = True) 
         raise InvalidClient("Invalid jwt token") from None
 
     client_id = payload["sub"]
-    payload["scope"]
+    scopes = payload["scope"]
     token_version = payload["ver"]
 
     async with SessionLocal() as session:
@@ -140,5 +140,5 @@ async def decode_jwt_client_token(access_token: str, auth_enabled: bool = True) 
             raise InvalidClient("Token revoked") from None
 
     return DecodedClientToken(
-        client_id=uuid.UUID(client_id), scopes={scope for scope in db_client.scopes.split()}
+        client_id=uuid.UUID(client_id), scopes={scope for scope in scopes.split()}
     )
