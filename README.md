@@ -120,6 +120,48 @@ It's recommended to run cleanup commands periodically using cron or a scheduler 
 */5 * * * * docker run --rm -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' allisson/fastpubsub cleanup_stuck_messages
 ```
 
+### 🔐 Authentication Commands
+
+#### Generate Secret Key
+
+Generate a secure random secret key for authentication:
+
+```bash
+docker run --rm allisson/fastpubsub generate_secret_key
+```
+
+**Output:**
+```
+new_secret=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+```
+
+Use this secret key to set the `FASTPUBSUB_AUTH_SECRET_KEY` environment variable.
+
+#### Create Client
+
+Create a new client with API credentials:
+
+```bash
+docker run --rm \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' \
+  -e FASTPUBSUB_AUTH_ENABLED='true' \
+  -e FASTPUBSUB_AUTH_SECRET_KEY='your-secret-key' \
+  allisson/fastpubsub create_client "My Application" "*" true
+```
+
+**Arguments:**
+1. Client name (e.g., "My Application")
+2. Scopes (e.g., "*" for admin, or "topics:create topics:read")
+3. Is active flag (true or false)
+
+**Output:**
+```
+client_id=550e8400-e29b-41d4-a716-446655440000
+client_secret=a1b2c3d4e5f6g7h8
+```
+
+Save the `client_id` and `client_secret` securely - the secret cannot be retrieved later.
+
 ## ⚙️ Configuration
 
 Configure fastpubsub using environment variables. All variables are prefixed with `FASTPUBSUB_`.
@@ -163,6 +205,15 @@ asctime=%(asctime)s level=%(levelname)s pathname=%(pathname)s line=%(lineno)s me
 | `FASTPUBSUB_API_PORT` | Server port | `8000` |
 | `FASTPUBSUB_API_NUM_WORKERS` | Number of Gunicorn workers | `1` |
 
+### 🔐 Authentication Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `FASTPUBSUB_AUTH_ENABLED` | Enable authentication | `false` |
+| `FASTPUBSUB_AUTH_SECRET_KEY` | Secret key for JWT signing (required if auth enabled) | `None` |
+| `FASTPUBSUB_AUTH_ALGORITHM` | JWT signing algorithm | `HS256` |
+| `FASTPUBSUB_AUTH_ACCESS_TOKEN_EXPIRE_MINUTES` | Access token expiration time in minutes | `30` |
+
 ### 🧹 Cleanup Workers Configuration
 
 | Variable | Description | Default |
@@ -182,6 +233,172 @@ docker run -p 8000:8000 \
 ```
 
 ## 📡 API Reference
+
+### 🔐 Authentication
+
+fastpubsub supports optional JWT-based authentication to secure API access. When authentication is disabled (default), all API endpoints are accessible without credentials. When enabled, clients must authenticate using OAuth2 client credentials flow.
+
+#### Scopes
+
+Authentication uses a scope-based permission system. Scopes can be global or object-specific:
+
+**Global Scopes:**
+- `*` - Admin mode, full access to all resources and operations
+- `topics:create` - Can create new topics
+- `topics:read` - Can list or get topics
+- `topics:delete` - Can delete topics
+- `topics:publish` - Can publish messages to topics
+- `subscriptions:create` - Can create new subscriptions
+- `subscriptions:read` - Can list or get subscriptions
+- `subscriptions:delete` - Can delete subscriptions
+- `subscriptions:consume` - Can consume messages from subscriptions
+- `clients:create` - Can create new clients
+- `clients:update` - Can update clients
+- `clients:read` - Can list or get clients
+- `clients:delete` - Can delete clients
+
+**Object-Specific Scopes:**
+
+You can restrict access to specific resources by appending the resource ID to the scope:
+- `topics:publish:my-topic-id` - Can only publish to the topic with ID "my-topic-id"
+- `subscriptions:consume:my-subscription` - Can only consume from the subscription with ID "my-subscription"
+
+Multiple scopes can be combined, separated by spaces: `topics:create topics:read subscriptions:read`
+
+#### Obtaining an Access Token
+
+**Request:**
+```http
+POST /oauth/token
+Content-Type: application/json
+
+{
+  "client_id": "550e8400-e29b-41d4-a716-446655440000",
+  "client_secret": "a1b2c3d4e5f6g7h8"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 1800,
+  "scope": "topics:create topics:read"
+}
+```
+
+#### Using the Access Token
+
+Include the access token in the `Authorization` header for authenticated requests:
+
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  http://localhost:8000/topics
+```
+
+### 👥 Clients
+
+Clients represent applications or services that access the API. Each client has credentials (client_id and client_secret) and a set of scopes that define their permissions.
+
+#### Create a Client
+
+```http
+POST /clients
+Authorization: Bearer <token>
+```
+
+**Request Body:**
+```json
+{
+  "name": "My Application",
+  "scopes": "topics:create topics:read subscriptions:consume",
+  "is_active": true
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "secret": "a1b2c3d4e5f6g7h8"
+}
+```
+
+**Note:** The client secret is only returned once during creation. Store it securely.
+
+#### Get a Client
+
+```http
+GET /clients/{id}
+Authorization: Bearer <token>
+```
+
+**Response:** `200 OK`
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "My Application",
+  "scopes": "topics:create topics:read",
+  "is_active": true,
+  "token_version": 1,
+  "created_at": "2025-12-29T15:30:00Z",
+  "updated_at": "2025-12-29T15:30:00Z"
+}
+```
+
+#### List Clients
+
+```http
+GET /clients?offset=0&limit=10
+Authorization: Bearer <token>
+```
+
+**Response:** `200 OK`
+```json
+{
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "My Application",
+      "scopes": "topics:create topics:read",
+      "is_active": true,
+      "token_version": 1,
+      "created_at": "2025-12-29T15:30:00Z",
+      "updated_at": "2025-12-29T15:30:00Z"
+    }
+  ]
+}
+```
+
+#### Update a Client
+
+```http
+PUT /clients/{id}
+Authorization: Bearer <token>
+```
+
+**Request Body:**
+```json
+{
+  "name": "Updated Application Name",
+  "scopes": "topics:read subscriptions:read",
+  "is_active": true
+}
+```
+
+**Response:** `200 OK`
+
+**Note:** Updating a client increments its `token_version`, which invalidates all existing access tokens for that client.
+
+#### Delete a Client
+
+```http
+DELETE /clients/{id}
+Authorization: Bearer <token>
+```
+
+**Response:** `204 No Content`
 
 ### 🎯 Topics
 
@@ -517,7 +734,45 @@ You can configure Prometheus to scrape this endpoint for monitoring and alerting
 
 ## 💡 Usage Examples
 
-### Example 1: Simple Pub/Sub
+### Example 1: Setting Up Authentication
+
+```bash
+# 1. Generate a secret key
+docker run --rm allisson/fastpubsub generate_secret_key
+# Output: new_secret=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+
+# 2. Start the server with authentication enabled
+docker run -p 8000:8000 \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' \
+  -e FASTPUBSUB_AUTH_ENABLED='true' \
+  -e FASTPUBSUB_AUTH_SECRET_KEY='a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6' \
+  allisson/fastpubsub server
+
+# 3. Create an admin client (requires initial client creation via CLI or direct DB access)
+docker run --rm \
+  -e FASTPUBSUB_DATABASE_URL='postgresql+psycopg://YOUR_USER:YOUR_PASSWORD@YOUR_HOST:5432/YOUR_DATABASE' \
+  -e FASTPUBSUB_AUTH_ENABLED='true' \
+  -e FASTPUBSUB_AUTH_SECRET_KEY='a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6' \
+  allisson/fastpubsub create_client "Admin Client" "*" true
+# Output:
+# client_id=550e8400-e29b-41d4-a716-446655440000
+# client_secret=a1b2c3d4e5f6g7h8
+
+# 4. Get an access token
+curl -X POST http://localhost:8000/oauth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "550e8400-e29b-41d4-a716-446655440000",
+    "client_secret": "a1b2c3d4e5f6g7h8"
+  }'
+# Output: {"access_token": "eyJhbGc...", "token_type": "Bearer", "expires_in": 1800, "scope": "*"}
+
+# 5. Use the token to access protected endpoints
+TOKEN="eyJhbGc..."
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/topics
+```
+
+### Example 2: Simple Pub/Sub
 
 ```bash
 # 1. Create a topic
@@ -549,7 +804,44 @@ curl -X POST http://localhost:8000/subscriptions/email-sender/acks \
   -d '["550e8400-e29b-41d4-a716-446655440000"]'
 ```
 
-### Example 2: Filtered Subscription
+### Example 3: Creating Clients with Different Scopes
+
+```bash
+# Assuming you have an admin token
+ADMIN_TOKEN="eyJhbGc..."
+
+# 1. Create a client that can only publish to a specific topic
+curl -X POST http://localhost:8000/clients \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Publisher Service",
+    "scopes": "topics:publish:notifications",
+    "is_active": true
+  }'
+
+# 2. Create a client that can only consume from a specific subscription
+curl -X POST http://localhost:8000/clients \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Consumer Service",
+    "scopes": "subscriptions:consume:email-sender",
+    "is_active": true
+  }'
+
+# 3. Create a client with multiple permissions
+curl -X POST http://localhost:8000/clients \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Multi-Purpose Service",
+    "scopes": "topics:create topics:read topics:publish subscriptions:create subscriptions:read",
+    "is_active": true
+  }'
+```
+
+### Example 4: Filtered Subscription
 
 ```bash
 # Create a subscription that only receives messages from BR and US
@@ -573,7 +865,7 @@ curl -X POST http://localhost:8000/topics/user-events/messages \
 
 The subscription will only receive messages with `country` set to "BR" or "US" (messages for user 1 and 3, not user 2).
 
-### Example 3: Complex Filter
+### Example 5: Complex Filter
 
 The filter feature uses a simple JSON style where keys are field names and values are arrays of acceptable values:
 
@@ -592,7 +884,7 @@ This filter matches messages that have:
 - AND `priority` equal to "high" OR "critical"
 - AND `region` equal to "us-east" OR "us-west"
 
-### Example 4: Handling Failed Messages
+### Example 6: Handling Failed Messages
 
 ```bash
 # Check metrics to see if there are DLQ messages
@@ -607,7 +899,7 @@ curl -X POST http://localhost:8000/subscriptions/email-sender/dlq/reprocess \
   -d '["550e8400-e29b-41d4-a716-446655440000"]'
 ```
 
-### Example 5: Health Check Monitoring
+### Example 7: Health Check Monitoring
 
 ```bash
 # Check if the application is alive (for restart decisions)
@@ -635,7 +927,7 @@ readinessProbe:
   periodSeconds: 5
 ```
 
-### Example 6: Monitoring with Prometheus
+### Example 8: Monitoring with Prometheus
 
 ```bash
 # Access Prometheus metrics
@@ -689,6 +981,15 @@ scrape_configs:
 - **Set appropriate timeouts**: Configure backoff settings based on your use case
 - **Database backups**: Regular PostgreSQL backups are crucial
 
+### 🔐 Security
+
+- **Enable authentication**: Set `FASTPUBSUB_AUTH_ENABLED=true` for production deployments
+- **Secure secret keys**: Generate strong secret keys using the `generate_secret_key` command
+- **Principle of least privilege**: Grant clients only the scopes they need
+- **Rotate credentials**: Regularly update client secrets by recreating clients
+- **Token management**: Access tokens expire after 30 minutes by default (configurable)
+- **Revoke access**: Update a client to increment its `token_version` and invalidate all existing tokens
+
 ## 📚 API Documentation
 
 Once the server is running, you can access the interactive API documentation:
@@ -726,6 +1027,26 @@ If you're having trouble connecting to the database from Docker:
 - Run multiple consumer instances
 - Check database connection pool settings
 - Review and optimize your subscription filters
+
+### Authentication Issues
+
+**401 Unauthorized / Invalid Token:**
+- Verify that `FASTPUBSUB_AUTH_ENABLED=true` is set on the server
+- Ensure you're using a valid access token obtained from `/oauth/token`
+- Check that the token hasn't expired (default: 30 minutes)
+- Verify the client is still active and hasn't been deleted or disabled
+- If the client was updated, old tokens are invalidated - request a new token
+
+**403 Forbidden / Insufficient Scope:**
+- Check that the client has the required scope for the operation
+- For object-specific operations, ensure the scope includes the resource ID
+- Use `*` scope for admin/testing purposes (not recommended for production)
+- Example: To publish to topic "events", client needs `topics:publish` or `topics:publish:events` scope
+
+**Missing FASTPUBSUB_AUTH_SECRET_KEY:**
+- Generate a secret key using `docker run --rm allisson/fastpubsub generate_secret_key`
+- Set it as an environment variable: `FASTPUBSUB_AUTH_SECRET_KEY=your-generated-key`
+- The same secret key must be used across all server instances
 
 ---
 
