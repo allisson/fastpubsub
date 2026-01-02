@@ -8,11 +8,11 @@ from fastpubsub.services import (
     nack_messages,
     publish_messages,
 )
-from tests.helpers import sync_call_service
+from tests.helpers import sync_call_function
 
 
 def test_create_subscription(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
     data = {"id": "my-subscription", "topic_id": "my-topic"}
 
     response = client.post("/subscriptions", json=data)
@@ -30,8 +30,10 @@ def test_create_subscription(session, client):
 
 
 def test_get_subscription(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
-    sync_call_service(create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(
+        create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic")
+    )
 
     response = client.get("/subscriptions/my-subscription")
     response_data = response.json()
@@ -49,10 +51,10 @@ def test_get_subscription(session, client):
 
 
 def test_list_subscription(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
     data = [{"id": "my-subscription-1"}, {"id": "my-subscription-2"}]
     for subscription_data in data:
-        sync_call_service(
+        sync_call_function(
             create_subscription, data=CreateSubscription(id=subscription_data["id"], topic_id="my-topic")
         )
 
@@ -80,8 +82,10 @@ def test_list_subscription(session, client):
 
 
 def test_delete_subscription(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
-    sync_call_service(create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(
+        create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic")
+    )
 
     response = client.delete("/subscriptions/my-subscription")
 
@@ -95,9 +99,11 @@ def test_delete_subscription(session, client):
 
 
 def test_consume_messages(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
-    sync_call_service(create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
-    sync_call_service(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(
+        create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic")
+    )
+    sync_call_function(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
 
     response = client.get(
         "/subscriptions/my-subscription/messages", params={"consumer_id": "id", "batch_size": 1}
@@ -118,10 +124,12 @@ def test_consume_messages(session, client):
 
 
 def test_ack_messages(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
-    sync_call_service(create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
-    sync_call_service(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
-    messages = sync_call_service(
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(
+        create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic")
+    )
+    sync_call_function(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
+    messages = sync_call_function(
         consume_messages, subscription_id="my-subscription", consumer_id="id", batch_size=1
     )
     data = [str(message.id) for message in messages]
@@ -138,10 +146,12 @@ def test_ack_messages(session, client):
 
 
 def test_nack_messages(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
-    sync_call_service(create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
-    sync_call_service(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
-    messages = sync_call_service(
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(
+        create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic")
+    )
+    sync_call_function(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
+    messages = sync_call_function(
         consume_messages, subscription_id="my-subscription", consumer_id="id", batch_size=1
     )
     data = [str(message.id) for message in messages]
@@ -158,16 +168,16 @@ def test_nack_messages(session, client):
 
 
 def test_list_dlq(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
-    sync_call_service(
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(
         create_subscription,
         data=CreateSubscription(id="my-subscription", topic_id="my-topic", max_delivery_attempts=1),
     )
-    sync_call_service(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
-    messages = sync_call_service(
+    sync_call_function(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
+    messages = sync_call_function(
         consume_messages, subscription_id="my-subscription", consumer_id="id", batch_size=1
     )
-    sync_call_service(
+    sync_call_function(
         nack_messages,
         subscription_id="my-subscription",
         message_ids=[str(message.id) for message in messages],
@@ -188,21 +198,21 @@ def test_list_dlq(session, client):
 
 
 def test_reprocess_dlq(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
-    sync_call_service(
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(
         create_subscription,
         data=CreateSubscription(id="my-subscription", topic_id="my-topic", max_delivery_attempts=1),
     )
-    sync_call_service(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
-    messages = sync_call_service(
+    sync_call_function(publish_messages, topic_id="my-topic", messages=[{"id": 1}])
+    messages = sync_call_function(
         consume_messages, subscription_id="my-subscription", consumer_id="id", batch_size=1
     )
     message = messages[0]
-    sync_call_service(nack_messages, subscription_id="my-subscription", message_ids=[str(message.id)])
+    sync_call_function(nack_messages, subscription_id="my-subscription", message_ids=[str(message.id)])
     data = [str(message.id)]
 
     response = client.post("/subscriptions/my-subscription/dlq/reprocess", json=data)
-    messages = sync_call_service(
+    messages = sync_call_function(
         consume_messages, subscription_id="my-subscription", consumer_id="id", batch_size=1
     )
 
@@ -218,8 +228,10 @@ def test_reprocess_dlq(session, client):
 
 
 def test_subscription_metrics(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
-    sync_call_service(create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(
+        create_subscription, data=CreateSubscription(id="my-subscription", topic_id="my-topic")
+    )
 
     response = client.get("/subscriptions/my-subscription/metrics")
     response_data = response.json()
@@ -242,7 +254,7 @@ def test_subscription_metrics(session, client):
 
 def test_subscription_filter_xss_sanitization(session, client):
     """Test that XSS attacks in subscription filters are sanitized."""
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
 
     # Test XSS in filter value
     data = {
@@ -264,7 +276,7 @@ def test_subscription_filter_xss_sanitization(session, client):
 
 def test_subscription_filter_sql_injection_patterns(session, client):
     """Test that SQL injection patterns in filters are sanitized."""
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
 
     # Test SQL-like patterns in filter value
     data = {
@@ -284,7 +296,7 @@ def test_subscription_filter_sql_injection_patterns(session, client):
 
 def test_subscription_filter_control_characters(session, client):
     """Test that control characters in filters are removed."""
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
 
     # Test control characters in filter value
     data = {
@@ -304,7 +316,7 @@ def test_subscription_filter_control_characters(session, client):
 
 def test_subscription_filter_invalid_structure(session, client):
     """Test that invalid filter structure is rejected."""
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
 
     # Test invalid structure (value not an array)
     data = {
@@ -322,7 +334,7 @@ def test_subscription_filter_invalid_structure(session, client):
 
 def test_subscription_filter_with_special_characters(session, client):
     """Test that special characters are properly encoded."""
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
 
     data = {
         "id": "special-chars-subscription",

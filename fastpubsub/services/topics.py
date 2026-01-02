@@ -37,6 +37,6 @@ async def list_topic(offset: int, limit: int) -> list[Topic]:
         return [Topic(**db_topic.to_dict()) for db_topic in db_topics]
 
 
-async def delete_topic(topic_id) -> None:
+async def delete_topic(topic_id: str) -> None:
     async with SessionLocal() as session:
         await _delete_entity(session, DBTopic, topic_id, "Topic not found")

@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     cleanup_acked_messages_older_than_seconds: int = Field(default=3600, ge=1)
     cleanup_stuck_messages_lock_timeout_seconds: int = Field(default=60, ge=1)
 
+    # auth
+    auth_enabled: bool = False
+    auth_secret_key: str | None = None
+    auth_algorithm: str = "HS256"
+    auth_access_token_expire_minutes: int = Field(default=30, ge=1)
+
     # load .env
     model_config = SettingsConfigDict(env_file=".env", env_prefix="fastpubsub_")
 

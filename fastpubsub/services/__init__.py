@@ -1,3 +1,13 @@
+from fastpubsub.services.auth import has_scope, require_scope
+from fastpubsub.services.clients import (
+    create_client,
+    decode_jwt_client_token,
+    delete_client,
+    get_client,
+    issue_jwt_client_token,
+    list_client,
+    update_client,
+)
 from fastpubsub.services.messages import (
     ack_messages,
     cleanup_acked_messages,
@@ -40,4 +50,15 @@ __all__ = [
     "cleanup_acked_messages",
     "subscription_metrics",
     "database_ping",
+    # Clients
+    "create_client",
+    "get_client",
+    "list_client",
+    "update_client",
+    "delete_client",
+    "issue_jwt_client_token",
+    "decode_jwt_client_token",
+    # Auth
+    "has_scope",
+    "require_scope",
 ]

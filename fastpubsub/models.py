@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, StringConstraints
 
 from fastpubsub.config import settings
 from fastpubsub.sanitizer import sanitize_filter
@@ -9,15 +10,7 @@ from fastpubsub.sanitizer import sanitize_filter
 regex_for_id = "^[a-zA-Z0-9-._]+$"
 
 
-class NotFound(BaseModel):
-    detail: str
-
-
-class AlreadyExists(BaseModel):
-    detail: str
-
-
-class ServiceUnavailable(BaseModel):
+class GenericError(BaseModel):
     detail: str
 
 
@@ -85,3 +78,74 @@ class SubscriptionMetrics(BaseModel):
 
 class HealthCheck(BaseModel):
     status: str
+
+
+class CreateClient(BaseModel):
+    name: Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+    scopes: Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+    is_active: bool = True
+
+    @field_validator("scopes")
+    def validate_scopes(cls, v: str):
+        valid_scopes = (
+            "*",
+            "topics:create",
+            "topics:read",
+            "topics:delete",
+            "topics:publish",
+            "subscriptions:create",
+            "subscriptions:read",
+            "subscriptions:delete",
+            "subscriptions:consume",
+            "clients:create",
+            "clients:update",
+            "clients:read",
+            "clients:delete",
+        )
+        for scope in v.split():
+            base_scope = scope
+            if len(scope.split(":")) == 3:
+                base_scope = scope.rsplit(":", 1)[0]
+            if base_scope not in valid_scopes:
+                raise ValueError(f"Invalid scope {scope}")
+        return v
+
+
+class CreateClientResult(BaseModel):
+    id: uuid.UUID
+    secret: str
+
+
+class Client(BaseModel):
+    id: uuid.UUID
+    name: str
+    scopes: str
+    is_active: bool
+    token_version: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class UpdateClient(CreateClient):
+    pass
+
+
+class ClientToken(BaseModel):
+    access_token: str
+    token_type: str = "Bearer"
+    expires_in: int
+    scope: str
+
+
+class DecodedClientToken(BaseModel):
+    client_id: uuid.UUID
+    scopes: set[str]
+
+
+class ListClientAPI(BaseModel):
+    data: list[Client]
+
+
+class IssueClientToken(BaseModel):
+    client_id: uuid.UUID
+    client_secret: str
