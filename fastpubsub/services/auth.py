@@ -34,7 +34,9 @@ async def get_current_token(token: str | None = Depends(oauth2_scheme)) -> Decod
 
 def require_scope(resource: str, action: str):
     async def dependency(request: Request, token: Annotated[DecodedClientToken, Depends(get_current_token)]):
-        resource_id = str(request.path_params.get("id"))
+        resource_id = request.path_params.get("id")
+        if resource_id is not None:
+            resource_id = str(resource_id)
 
         if not has_scope(token.scopes, resource, action, resource_id):
             raise InvalidClientToken("Insufficient scope") from None

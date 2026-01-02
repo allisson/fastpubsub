@@ -139,6 +139,4 @@ async def decode_jwt_client_token(access_token: str, auth_enabled: bool = True) 
         if token_version != db_client.token_version:
             raise InvalidClient("Token revoked") from None
 
-    return DecodedClientToken(
-        client_id=uuid.UUID(client_id), scopes={scope for scope in scopes.split()}
-    )
+    return DecodedClientToken(client_id=uuid.UUID(client_id), scopes={scope for scope in scopes.split()})
