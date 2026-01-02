@@ -47,6 +47,5 @@ def test_create_client_with_valid_scopes(scopes):
     ],
 )
 def test_create_client_with_invalid_scopes(scopes):
-    print(f"scopes={scopes}")
     with pytest.raises(ValidationError):
         CreateClient(name="my client", scopes=scopes)
