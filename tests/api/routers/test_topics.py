@@ -2,7 +2,7 @@ from fastapi import status
 
 from fastpubsub.models import CreateTopic
 from fastpubsub.services import create_topic
-from tests.helpers import sync_call_service
+from tests.helpers import sync_call_function
 
 
 def test_create_topic(session, client):
@@ -22,7 +22,7 @@ def test_create_topic(session, client):
 
 
 def test_get_topic(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
 
     response = client.get("/topics/my-topic")
     response_data = response.json()
@@ -41,7 +41,7 @@ def test_get_topic(session, client):
 def test_list_topic(session, client):
     data = [{"id": "my-topic-1"}, {"id": "my-topic-2"}]
     for topic_data in data:
-        sync_call_service(create_topic, data=CreateTopic(id=topic_data["id"]))
+        sync_call_function(create_topic, data=CreateTopic(id=topic_data["id"]))
 
     response = client.get("/topics")
     response_data = response.json()
@@ -67,7 +67,7 @@ def test_list_topic(session, client):
 
 
 def test_delete_topic(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
 
     response = client.delete("/topics/my-topic")
 
@@ -81,7 +81,7 @@ def test_delete_topic(session, client):
 
 
 def test_publish_messages(session, client):
-    sync_call_service(create_topic, data=CreateTopic(id="my-topic"))
+    sync_call_function(create_topic, data=CreateTopic(id="my-topic"))
 
     data = [{"id": 1}, {"id": 2}]
 

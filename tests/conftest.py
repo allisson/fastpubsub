@@ -4,7 +4,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete
 
 from fastpubsub.api import app
-from fastpubsub.database import engine, run_migrations, SessionLocal, Subscription, SubscriptionMessage, Topic
+from fastpubsub.database import (
+    Client,
+    engine,
+    run_migrations,
+    SessionLocal,
+    Subscription,
+    SubscriptionMessage,
+    Topic,
+)
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -24,6 +32,7 @@ async def session(async_engine):
         await sess.execute(delete(SubscriptionMessage))
         await sess.execute(delete(Subscription))
         await sess.execute(delete(Topic))
+        await sess.execute(delete(Client))
         await sess.commit()
 
 

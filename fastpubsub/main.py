@@ -1,4 +1,5 @@
 import asyncio
+from typing import Annotated
 
 import typer
 
@@ -6,7 +7,9 @@ from fastpubsub.api import app, run_server
 from fastpubsub.config import settings
 from fastpubsub.database import run_migrations
 from fastpubsub.logger import get_logger
-from fastpubsub.services import cleanup_acked_messages, cleanup_stuck_messages
+from fastpubsub.models import CreateClient
+from fastpubsub.services import cleanup_acked_messages, cleanup_stuck_messages, create_client
+from fastpubsub.services.clients import generate_secret
 
 logger = get_logger(__name__)
 cli = typer.Typer()
@@ -54,6 +57,25 @@ def run_cleanup_stuck_messages() -> None:
             lock_timeout_seconds=settings.cleanup_stuck_messages_lock_timeout_seconds,
         )
     )
+
+
+@cli.command("generate_secret_key")
+def run_generate_secret_key() -> None:
+    secret = generate_secret()
+    typer.echo(f"new_secret={secret}")
+
+
+@cli.command("create_client")
+def run_create_client(
+    name: Annotated[str, typer.Argument(help="The client name.")],
+    scopes: Annotated[str, typer.Argument(help="The client scopes.")] = "*",
+    is_active: Annotated[bool, typer.Argument(help="The flag to enable or disable client.")] = True,
+) -> None:
+    client_result = asyncio.run(
+        create_client(data=CreateClient(name=name, scopes=scopes, is_active=is_active))
+    )
+    typer.echo(f"client_id={client_result.id}")
+    typer.echo(f"client_secret={client_result.secret}")
 
 
 if __name__ == "__main__":

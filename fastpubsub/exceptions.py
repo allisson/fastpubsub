@@ -8,3 +8,11 @@ class AlreadyExistsError(Exception):
 
 class ServiceUnavailable(Exception):
     pass
+
+
+class InvalidClient(Exception):
+    pass
+
+
+class InvalidClientToken(Exception):
+    pass

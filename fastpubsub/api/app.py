@@ -5,9 +5,15 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from fastpubsub import models
 from fastpubsub.api.helpers import _create_error_response
 from fastpubsub.api.middlewares import log_requests
-from fastpubsub.api.routers import monitoring, subscriptions, topics
+from fastpubsub.api.routers import clients, monitoring, subscriptions, topics
 from fastpubsub.config import settings
-from fastpubsub.exceptions import AlreadyExistsError, NotFoundError, ServiceUnavailable
+from fastpubsub.exceptions import (
+    AlreadyExistsError,
+    InvalidClient,
+    InvalidClientToken,
+    NotFoundError,
+    ServiceUnavailable,
+)
 
 tags_metadata = [
     {
@@ -21,6 +27,10 @@ tags_metadata = [
     {
         "name": "monitoring",
         "description": "Operations with monitoring.",
+    },
+    {
+        "name": "clients",
+        "description": "Operations with clients.",
     },
 ]
 
@@ -39,20 +49,29 @@ def create_app() -> FastAPI:
     # Add exception handlers
     @app.exception_handler(AlreadyExistsError)
     def already_exists_exception_handler(request: Request, exc: AlreadyExistsError):
-        return _create_error_response(models.AlreadyExists, status.HTTP_409_CONFLICT, exc)
+        return _create_error_response(models.GenericError, status.HTTP_409_CONFLICT, exc)
 
     @app.exception_handler(NotFoundError)
     def not_found_exception_handler(request: Request, exc: NotFoundError):
-        return _create_error_response(models.NotFound, status.HTTP_404_NOT_FOUND, exc)
+        return _create_error_response(models.GenericError, status.HTTP_404_NOT_FOUND, exc)
 
     @app.exception_handler(ServiceUnavailable)
     def service_unavailable_exception_handler(request: Request, exc: ServiceUnavailable):
-        return _create_error_response(models.ServiceUnavailable, status.HTTP_503_SERVICE_UNAVAILABLE, exc)
+        return _create_error_response(models.GenericError, status.HTTP_503_SERVICE_UNAVAILABLE, exc)
+
+    @app.exception_handler(InvalidClient)
+    def invalid_client_exception_handler(request: Request, exc: InvalidClient):
+        return _create_error_response(models.GenericError, status.HTTP_401_UNAUTHORIZED, exc)
+
+    @app.exception_handler(InvalidClientToken)
+    def invalid_client_token_exception_handler(request: Request, exc: InvalidClientToken):
+        return _create_error_response(models.GenericError, status.HTTP_403_FORBIDDEN, exc)
 
     # Add routers
     app.include_router(topics.router)
     app.include_router(subscriptions.router)
     app.include_router(monitoring.router)
+    app.include_router(clients.router)
 
     # Add Prometheus instrumentation
     Instrumentator().instrument(app).expose(app)

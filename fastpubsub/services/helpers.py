@@ -1,4 +1,5 @@
 import datetime
+import uuid
 
 from sqlalchemy import select, text
 
@@ -10,17 +11,19 @@ def utc_now():
     return datetime.datetime.now(datetime.UTC)
 
 
-async def _get_entity(session, model, entity_id: str, error_message: str):
+async def _get_entity(
+    session, model, entity_id: str | uuid.UUID, error_message: str, raise_exception: bool = True
+):
     """Generic helper to get an entity by ID or raise NotFoundError."""
     stmt = select(model).filter_by(id=entity_id)
     result = await session.execute(stmt)
     entity = result.scalar_one_or_none()
-    if entity is None:
+    if entity is None and raise_exception:
         raise NotFoundError(error_message) from None
     return entity
 
 
-async def _delete_entity(session, model, entity_id: str, error_message: str) -> None:
+async def _delete_entity(session, model, entity_id: str | uuid.UUID, error_message: str) -> None:
     """Generic helper to delete an entity by ID or raise NotFoundError."""
     entity = await _get_entity(session, model, entity_id, error_message)
     await session.delete(entity)

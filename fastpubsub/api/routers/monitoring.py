@@ -20,7 +20,7 @@ async def liveness_probe():
     "/readiness",
     response_model=models.HealthCheck,
     status_code=status.HTTP_200_OK,
-    responses={503: {"model": models.ServiceUnavailable}},
+    responses={503: {"model": models.GenericError}},
     summary="Readiness probe",
 )
 async def readiness_probe():

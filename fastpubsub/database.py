@@ -70,6 +70,22 @@ class SubscriptionMessage(Base):
         return f"SubscriptionMessage(id={self.id}, subscription_id={self.subscription_id})"
 
 
+class Client(Base):
+    id = sa.Column(postgresql.UUID, primary_key=True)
+    name = sa.Column(sa.Text, nullable=False)
+    scopes = sa.Column(sa.Text, nullable=False)
+    is_active = sa.Column(sa.Boolean, nullable=False)
+    secret_hash = sa.Column(sa.Text, nullable=False)
+    token_version = sa.Column(sa.Integer, nullable=False)
+    created_at = sa.Column(sa.DateTime(timezone=True), nullable=False)
+    updated_at = sa.Column(sa.DateTime(timezone=True), nullable=False)
+
+    __tablename__ = "clients"
+
+    def __repr__(self):
+        return f"Client(id={self.id}, name={self.name})"
+
+
 async def run_migrations(command_type: str = "upgrade", revision: str = "head") -> None:
     parent_path = Path(__file__).parents[1]
     script_location = parent_path.joinpath(Path("migrations"))
