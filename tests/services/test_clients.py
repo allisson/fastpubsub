@@ -223,4 +223,4 @@ async def test_decode_jwt_client_token_with_auth_disabled():
     decoded_client = await services.decode_jwt_client_token("", auth_enabled=False)
 
     assert isinstance(decoded_client.client_id, uuid.UUID)
-    assert decoded_client.scopes == set("*")
+    assert decoded_client.scopes == {"*"}
