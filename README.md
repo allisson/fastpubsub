@@ -988,7 +988,7 @@ scrape_configs:
 - **Principle of least privilege**: Grant clients only the scopes they need
 - **Rotate credentials**: Regularly update client secrets by recreating clients
 - **Token management**: Access tokens expire after 30 minutes by default (configurable)
-- **Revoke access**: Update a client to increment its token_version and invalidate all existing tokens
+- **Revoke access**: Update a client to increment its `token_version` and invalidate all existing tokens
 
 ## 📚 API Documentation
 
