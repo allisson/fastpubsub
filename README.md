@@ -1048,6 +1048,265 @@ If you're having trouble connecting to the database from Docker:
 - Set it as an environment variable: `FASTPUBSUB_AUTH_SECRET_KEY=your-generated-key`
 - The same secret key must be used across all server instances
 
+## 🛠️ Development Setup
+
+This section is for developers who want to contribute to fastpubsub or run it locally without Docker.
+
+### 📋 Prerequisites
+
+- **Python 3.14+**: The project requires Python 3.14 or later
+- **uv**: Fast Python package installer and resolver ([installation guide](https://github.com/astral-sh/uv))
+- **PostgreSQL 14+**: Local PostgreSQL instance for development
+- **make**: For running Makefile commands (usually pre-installed on Unix-like systems)
+
+### 🚀 Initial Setup
+
+1. **Clone the repository:**
+
+```bash
+git clone https://github.com/allisson/fastpubsub.git
+cd fastpubsub
+```
+
+2. **Start a local PostgreSQL instance (optional):**
+
+If you don't have PostgreSQL running, you can use the provided Makefile command:
+
+```bash
+make start-postgresql
+```
+
+This starts a PostgreSQL container with default credentials:
+- User: `fastpubsub`
+- Password: `fastpubsub`
+- Database: `fastpubsub`
+- Port: `5432`
+
+To stop and remove the PostgreSQL container later:
+
+```bash
+make remove-postgresql
+```
+
+3. **Set up environment variables:**
+
+Copy the sample environment file and adjust as needed:
+
+```bash
+cp env.sample .env
+```
+
+Edit `.env` to configure your local database connection and other settings.
+
+4. **Install dependencies:**
+
+```bash
+# Install uv if you haven't already
+pip install uv
+
+# Install project dependencies (including development dependencies)
+uv sync
+```
+
+This creates a virtual environment at `.venv` and installs all required packages.
+
+5. **Run database migrations:**
+
+```bash
+make run-db-migrate
+```
+
+Or manually:
+
+```bash
+PYTHONPATH=./ uv run python fastpubsub/main.py db-migrate
+```
+
+### 🧪 Running Tests
+
+Run the full test suite:
+
+```bash
+make test
+```
+
+Or manually with pytest:
+
+```bash
+uv run pytest -v
+```
+
+For coverage reporting:
+
+```bash
+uv run pytest -v --cov=fastpubsub --cov-report=term-missing
+```
+
+### 🎨 Linting and Code Quality
+
+The project uses [ruff](https://docs.astral.sh/ruff/) for linting and formatting, along with pre-commit hooks.
+
+**Run linting:**
+
+```bash
+make lint
+```
+
+This runs all pre-commit hooks including:
+- Ruff linting and formatting
+- Various file checks (trailing whitespace, YAML/JSON validation, etc.)
+- MyPy type checking
+
+**Install pre-commit hooks (recommended):**
+
+```bash
+uv run pre-commit install
+```
+
+After installation, the hooks will run automatically on every commit.
+
+**Manual formatting:**
+
+```bash
+# Format code with ruff
+uv run ruff format .
+
+# Run ruff checks with auto-fix
+uv run ruff check --fix .
+```
+
+### 🏃 Running the Server Locally
+
+Start the development server:
+
+```bash
+make run-server
+```
+
+Or manually:
+
+```bash
+PYTHONPATH=./ uv run python fastpubsub/main.py server
+```
+
+The API will be available at:
+- Server: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+
+### 🗄️ Database Migrations
+
+**Create a new migration:**
+
+```bash
+make create-migration
+```
+
+This generates a new migration file in `migrations/versions/`. Edit the file to define your schema changes.
+
+**Apply migrations:**
+
+```bash
+make run-db-migrate
+```
+
+### 🐳 Building Docker Image Locally
+
+Build the Docker image:
+
+```bash
+make docker-build
+```
+
+Or manually:
+
+```bash
+docker build --rm -t fastpubsub .
+```
+
+### 🔧 Development Workflow
+
+1. **Create a feature branch:**
+
+```bash
+git checkout -b feature/your-feature-name
+```
+
+2. **Make your changes and test locally:**
+
+```bash
+# Run linting
+make lint
+
+# Run tests
+make test
+
+# Start the server to manually test
+make run-server
+```
+
+3. **Commit your changes:**
+
+The pre-commit hooks will automatically run linting and checks. Ensure all checks pass.
+
+```bash
+git add .
+git commit -m "Your commit message"
+```
+
+4. **Push and create a pull request:**
+
+```bash
+git push origin feature/your-feature-name
+```
+
+### 📦 Project Structure
+
+```
+fastpubsub/
+├── fastpubsub/           # Main application package
+│   ├── api/              # FastAPI routes and API logic
+│   ├── services/         # Business logic and services
+│   ├── config.py         # Configuration management
+│   ├── database.py       # Database connection and migrations
+│   ├── models.py         # Pydantic models
+│   ├── main.py           # CLI entry point
+│   └── ...
+├── migrations/           # Alembic database migrations
+│   └── versions/         # Migration files
+├── tests/                # Test suite
+│   ├── api/              # API tests
+│   ├── services/         # Service tests
+│   └── ...
+├── Dockerfile            # Production Docker image
+├── Makefile              # Development commands
+├── pyproject.toml        # Project metadata and dependencies
+├── ruff.toml             # Ruff linter configuration
+├── .pre-commit-config.yaml  # Pre-commit hooks configuration
+└── README.md             # This file
+```
+
+### 💻 Available Makefile Commands
+
+| Command | Description |
+|---------|-------------|
+| `make test` | Run the test suite with pytest |
+| `make lint` | Run pre-commit hooks (linting, formatting, checks) |
+| `make start-postgresql` | Start a local PostgreSQL Docker container |
+| `make remove-postgresql` | Stop and remove the PostgreSQL container |
+| `make create-migration` | Create a new Alembic migration file |
+| `make run-db-migrate` | Apply database migrations |
+| `make run-server` | Start the development server |
+| `make docker-build` | Build the Docker image locally |
+
+### 🔍 Additional Tips
+
+- **Virtual Environment**: The project uses `uv` which automatically manages a virtual environment in `.venv/`
+- **Python Version**: Ensure you're using Python 3.14+ as specified in `pyproject.toml`
+- **Environment Variables**: All configuration is done via environment variables prefixed with `FASTPUBSUB_`
+- **IDE Setup**: Consider configuring your IDE to use the `.venv/bin/python` interpreter
+- **Database**: The test suite uses the same database configured in your `.env` file
+
 ---
 
 Made with ❤️ using FastAPI and PostgreSQL
