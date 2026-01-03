@@ -1,3 +1,5 @@
+"""Configuration settings for fastpubsub application."""
+
 from enum import StrEnum
 
 from pydantic import Field, field_validator, model_validator
@@ -6,6 +8,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class LogLevel(StrEnum):
+    """Enumeration of available logging levels.
+
+    Used to specify the verbosity of logging output throughout the application.
+    """
+
     debug = "debug"
     info = "info"
     warning = "warning"
@@ -14,6 +21,15 @@ class LogLevel(StrEnum):
 
 
 class Settings(BaseSettings):
+    """Application settings configuration.
+
+    Manages all configuration parameters for the fastpubsub application,
+    including database, logging, subscription, API, worker, and authentication settings.
+
+    Settings are loaded from environment variables with the 'fastpubsub_' prefix
+    or from a .env file in the application directory.
+    """
+
     # database
     database_url: str
     database_echo: bool = False
@@ -53,12 +69,33 @@ class Settings(BaseSettings):
 
     @field_validator("database_url")
     def validate_database_url_format(cls, v: str):
+        """Validate database URL format.
+
+        Args:
+            v: The database URL string to validate.
+
+        Returns:
+            The validated database URL.
+
+        Raises:
+            ValueError: If URL doesn't start with 'postgresql+psycopg://'.
+        """
         if not v.startswith("postgresql+psycopg://"):
             raise ValueError("must start with 'postgresql+psycopg://'")
         return v
 
     @model_validator(mode="after")
     def check_subscription_backoff_order(self) -> "Settings":
+        """Validate subscription backoff timing configuration.
+
+        Ensures that max backoff seconds is greater than or equal to min backoff seconds.
+
+        Returns:
+            The validated Settings instance.
+
+        Raises:
+            ValueError: If max backoff seconds is less than min backoff seconds.
+        """
         if self.subscription_backoff_max_seconds < self.subscription_backoff_min_seconds:
             raise ValueError(
                 "subscription_backoff_max_seconds must be greater than or equal to subscription_backoff_min_seconds"

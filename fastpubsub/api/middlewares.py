@@ -1,3 +1,5 @@
+"""HTTP middleware for request logging and monitoring."""
+
 import time
 from uuid import uuid7
 
@@ -9,6 +11,26 @@ logger = get_logger(__name__)
 
 
 async def log_requests(request: Request, call_next):
+    """Middleware to log HTTP requests and responses with timing and request IDs.
+
+    This middleware:
+    - Generates a unique request ID for tracking
+    - Logs request details at the start
+    - Measures processing time
+    - Logs response details including status code and timing
+    - Adds request ID header to response
+    - Handles and logs any exceptions during request processing
+
+    Args:
+        request: The incoming FastAPI request.
+        call_next: The next middleware or endpoint to call.
+
+    Returns:
+        The processed HTTP response.
+
+    Raises:
+        Exception: Re-raises any exceptions encountered during processing.
+    """
     start_time = time.perf_counter()
     request_id = str(uuid7())
     logger.info(

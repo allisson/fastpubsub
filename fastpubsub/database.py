@@ -1,3 +1,5 @@
+"""Database models and utilities for fastpubsub application."""
+
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -23,11 +25,26 @@ SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=
 
 
 class Base(DeclarativeBase):
+    """Base declarative class for all database models.
+
+    Provides common functionality for all ORM models in the application.
+    """
+
     def to_dict(self):
+        """Convert model instance to dictionary.
+
+        Returns:
+            Dictionary mapping column names to their values.
+        """
         return {c.key: getattr(self, c.key) for c in inspect(self).mapper.column_attrs}
 
 
 class Topic(Base):
+    """Database model representing a topic in the pub/sub system.
+
+    Topics are used to organize messages and subscriptions.
+    """
+
     id = sa.Column(sa.Text, primary_key=True)
     created_at = sa.Column(sa.DateTime(timezone=True), nullable=False)
 
@@ -38,6 +55,12 @@ class Topic(Base):
 
 
 class Subscription(Base):
+    """Database model representing a subscription to a topic.
+
+    Subscriptions define how messages from a topic should be consumed,
+    including filtering, delivery attempts, and backoff configuration.
+    """
+
     id = sa.Column(sa.Text, primary_key=True)
     topic_id = sa.Column(sa.Text, nullable=False)
     filter = sa.Column(postgresql.JSONB, nullable=False, default={})
@@ -53,6 +76,11 @@ class Subscription(Base):
 
 
 class SubscriptionMessage(Base):
+    """Database model representing a message in a subscription's queue.
+
+    Tracks message delivery status, attempts, and processing state.
+    """
+
     id = sa.Column(postgresql.UUID, primary_key=True)
     subscription_id = sa.Column(sa.Text, nullable=False)
     payload = sa.Column(postgresql.JSONB, nullable=False)
@@ -71,6 +99,11 @@ class SubscriptionMessage(Base):
 
 
 class Client(Base):
+    """Database model representing an authorized client of the pub/sub system.
+
+    Clients can be granted scopes to perform specific operations.
+    """
+
     id = sa.Column(postgresql.UUID, primary_key=True)
     name = sa.Column(sa.Text, nullable=False)
     scopes = sa.Column(sa.Text, nullable=False)
@@ -87,6 +120,17 @@ class Client(Base):
 
 
 async def run_migrations(command_type: str = "upgrade", revision: str = "head") -> None:
+    """Run database migrations using Alembic.
+
+    Executes database schema migrations to update or revert the database structure.
+
+    Args:
+        command_type: Migration command to execute ('upgrade' or 'downgrade').
+        revision: Alembic revision to apply ('head' for latest, specific revision ID, etc.).
+
+    Raises:
+        Exception: If migration command fails.
+    """
     parent_path = Path(__file__).parents[1]
     script_location = parent_path.joinpath(Path("migrations"))
     ini_location = parent_path.joinpath(Path("alembic.ini"))
@@ -113,8 +157,24 @@ async def run_migrations(command_type: str = "upgrade", revision: str = "head") 
 
 
 def is_unique_violation(exc: IntegrityError) -> bool:
+    """Check if an IntegrityError is a unique constraint violation.
+
+    Args:
+        exc: The IntegrityError exception to check.
+
+    Returns:
+        True if the exception is a unique constraint violation, False otherwise.
+    """
     return "psycopg.errors.UniqueViolation" in exc.args[0]
 
 
 def is_foreign_key_violation(exc: IntegrityError) -> bool:
+    """Check if an IntegrityError is a foreign key constraint violation.
+
+    Args:
+        exc: The IntegrityError exception to check.
+
+    Returns:
+        True if the exception is a foreign key constraint violation, False otherwise.
+    """
     return "psycopg.errors.ForeignKeyViolation" in exc.args[0]

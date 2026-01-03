@@ -1,3 +1,5 @@
+"""Subscription management services for creating and managing topic subscriptions."""
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -9,6 +11,18 @@ from fastpubsub.services.helpers import _delete_entity, _get_entity, utc_now
 
 
 async def create_subscription(data: CreateSubscription) -> Subscription:
+    """Create a new subscription to a topic.
+
+    Args:
+        data: Subscription creation data including ID, topic ID, filter, and delivery settings.
+
+    Returns:
+        Subscription model with the created subscription details.
+
+    Raises:
+        AlreadyExistsError: If a subscription with the same ID already exists.
+        NotFoundError: If the specified topic doesn't exist.
+    """
     async with SessionLocal() as session:
         db_subscription = DBSubscription(
             id=data.id,
@@ -34,6 +48,17 @@ async def create_subscription(data: CreateSubscription) -> Subscription:
 
 
 async def get_subscription(subscription_id: str) -> Subscription:
+    """Retrieve a subscription by ID.
+
+    Args:
+        subscription_id: ID of the subscription to retrieve.
+
+    Returns:
+        Subscription model with full subscription details.
+
+    Raises:
+        NotFoundError: If no subscription with the given ID exists.
+    """
     async with SessionLocal() as session:
         db_subscription = await _get_entity(
             session, DBSubscription, subscription_id, "Subscription not found"
@@ -42,6 +67,15 @@ async def get_subscription(subscription_id: str) -> Subscription:
 
 
 async def list_subscription(offset: int, limit: int) -> list[Subscription]:
+    """List subscriptions with pagination support.
+
+    Args:
+        offset: Number of items to skip for pagination.
+        limit: Maximum number of items to return.
+
+    Returns:
+        List of Subscription models.
+    """
     async with SessionLocal() as session:
         stmt = select(DBSubscription).order_by(DBSubscription.id.asc()).offset(offset).limit(limit)
         result = await session.execute(stmt)
@@ -50,5 +84,13 @@ async def list_subscription(offset: int, limit: int) -> list[Subscription]:
 
 
 async def delete_subscription(subscription_id: str) -> None:
+    """Delete a subscription by ID.
+
+    Args:
+        subscription_id: ID of the subscription to delete.
+
+    Raises:
+        NotFoundError: If no subscription with the given ID exists.
+    """
     async with SessionLocal() as session:
         await _delete_entity(session, DBSubscription, subscription_id, "Subscription not found")
