@@ -335,8 +335,6 @@ async def decode_jwt_client_token(access_token: str, auth_enabled: bool = True) 
             },
         )
         return DecodedClientToken(client_id=uuid.UUID(client_id), scopes={scope for scope in scopes.split()})
-    except InvalidClient:
-        raise
     except Exception as e:
         duration = time.perf_counter() - start_time
         logger.error(
