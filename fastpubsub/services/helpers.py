@@ -1,12 +1,16 @@
 """Helper functions for service layer operations."""
 
 import datetime
+import time
 import uuid
 
 from sqlalchemy import select, text
 
 from fastpubsub.database import SessionLocal
 from fastpubsub.exceptions import NotFoundError
+from fastpubsub.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def utc_now():
@@ -75,9 +79,48 @@ async def _execute_sql_command(query: str, params: dict) -> bool:
     Returns:
         True if exactly one row was affected, False otherwise
     """
+    start_time = time.perf_counter()
     stmt = text(query)
-    async with SessionLocal() as session:
-        result = await session.execute(stmt, params)
-        rowcount = result.rowcount
-        await session.commit()
-    return rowcount == 1
+
+    try:
+        async with SessionLocal() as session:
+            result = await session.execute(stmt, params)
+            rowcount = result.rowcount
+            await session.commit()
+
+        duration = time.perf_counter() - start_time
+
+        # Log slow database operations (>100ms)
+        if duration > 0.1:
+            logger.warning(
+                "slow database operation",
+                extra={
+                    "query": query[:100] + "..." if len(query) > 100 else query,
+                    "params": str(params)[:200] + "..." if len(str(params)) > 200 else str(params),
+                    "rowcount": rowcount,
+                    "duration": f"{duration:.4f}s",
+                },
+            )
+        elif duration > 0.01:  # Log operations >10ms at debug level
+            logger.debug(
+                "database operation completed",
+                extra={
+                    "query": query[:50] + "..." if len(query) > 50 else query,
+                    "rowcount": rowcount,
+                    "duration": f"{duration:.4f}s",
+                },
+            )
+
+        return rowcount == 1
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+        logger.error(
+            "database operation failed",
+            extra={
+                "query": query[:100] + "..." if len(query) > 100 else query,
+                "params": str(params)[:200] + "..." if len(str(params)) > 200 else str(params),
+                "error": str(e),
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        raise
