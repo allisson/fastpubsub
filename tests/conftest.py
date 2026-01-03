@@ -29,7 +29,7 @@ async def async_engine():
     """
     await run_migrations(command_type="upgrade", revision="head")
     yield engine
-    await run_migrations(command_type="downgrade", revision="-1")
+    await run_migrations(command_type="downgrade", revision="base")
     await engine.dispose()
 
 
