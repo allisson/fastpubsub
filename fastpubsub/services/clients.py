@@ -2,6 +2,7 @@
 
 import datetime
 import secrets
+import time
 import uuid
 
 from jose import jwt
@@ -13,6 +14,7 @@ from fastpubsub.config import settings
 from fastpubsub.database import Client as DBClient
 from fastpubsub.database import SessionLocal
 from fastpubsub.exceptions import InvalidClient
+from fastpubsub.logger import get_logger
 from fastpubsub.models import (
     Client,
     ClientToken,
@@ -24,6 +26,7 @@ from fastpubsub.models import (
 from fastpubsub.services.helpers import _delete_entity, _get_entity, utc_now
 
 password_hash = PasswordHash.recommended()
+logger = get_logger(__name__)
 
 
 def generate_secret() -> str:
@@ -54,25 +57,44 @@ async def create_client(data: CreateClient) -> CreateClientResult:
         AlreadyExistsError: If a client with the same ID already exists.
         ValueError: If client data validation fails.
     """
-    async with SessionLocal() as session:
-        now = utc_now()
-        secret = generate_secret()
-        secret_hash = password_hash.hash(secret)
-        db_client = DBClient(
-            id=uuid.uuid7(),
-            name=data.name,
-            scopes=data.scopes,
-            is_active=data.is_active,
-            secret_hash=secret_hash,
-            token_version=1,
-            created_at=now,
-            updated_at=now,
+    start_time = time.perf_counter()
+    logger.info(
+        "creating client",
+        extra={"client_name": data.name, "scopes": data.scopes, "is_active": data.is_active},
+    )
+
+    try:
+        async with SessionLocal() as session:
+            now = utc_now()
+            secret = generate_secret()
+            secret_hash = password_hash.hash(secret)
+            db_client = DBClient(
+                id=uuid.uuid7(),
+                name=data.name,
+                scopes=data.scopes,
+                is_active=data.is_active,
+                secret_hash=secret_hash,
+                token_version=1,
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(db_client)
+
+            await session.commit()
+
+        duration = time.perf_counter() - start_time
+        logger.info(
+            "client created",
+            extra={"client_id": str(db_client.id), "client_name": data.name, "duration": f"{duration:.4f}s"},
         )
-        session.add(db_client)
-
-        await session.commit()
-
-    return CreateClientResult(id=db_client.id, secret=secret)
+        return CreateClientResult(id=db_client.id, secret=secret)
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+        logger.error(
+            "client creation failed",
+            extra={"client_name": data.name, "error": str(e), "duration": f"{duration:.4f}s"},
+        )
+        raise
 
 
 async def get_client(client_id: uuid.UUID) -> Client:
@@ -175,31 +197,66 @@ async def issue_jwt_client_token(client_id: uuid.UUID, client_secret: str) -> Cl
     Raises:
         InvalidClient: If client credentials are invalid or client is disabled.
     """
-    async with SessionLocal() as session:
-        db_client = await _get_entity(session, DBClient, client_id, "Client not found", raise_exception=False)
-        if not db_client:
-            raise InvalidClient("Client not found") from None
-        if not db_client.is_active:
-            raise InvalidClient("Client disabled") from None
-        if password_hash.verify(client_secret, db_client.secret_hash) is False:
-            raise InvalidClient("Client secret is invalid") from None
+    start_time = time.perf_counter()
+    logger.info("issuing jwt token", extra={"client_id": str(client_id)})
 
-        now = utc_now()
-        expires_in = now + datetime.timedelta(minutes=settings.auth_access_token_expire_minutes)
-        payload = {
-            "sub": str(client_id),
-            "exp": expires_in,
-            "iat": now,
-            "scope": db_client.scopes,
-            "ver": db_client.token_version,
-        }
-        access_token = jwt.encode(payload, key=settings.auth_secret_key, algorithm=settings.auth_algorithm)
+    try:
+        async with SessionLocal() as session:
+            db_client = await _get_entity(
+                session, DBClient, client_id, "Client not found", raise_exception=False
+            )
+            if not db_client:
+                logger.warning("token issuance failed: client not found", extra={"client_id": str(client_id)})
+                raise InvalidClient("Client not found") from None
+            if not db_client.is_active:
+                logger.warning(
+                    "token issuance failed: client disabled",
+                    extra={"client_id": str(client_id), "client_name": db_client.name},
+                )
+                raise InvalidClient("Client disabled") from None
+            if password_hash.verify(client_secret, db_client.secret_hash) is False:
+                logger.warning(
+                    "token issuance failed: invalid secret",
+                    extra={"client_id": str(client_id), "client_name": db_client.name},
+                )
+                raise InvalidClient("Client secret is invalid") from None
 
-    return ClientToken(
-        access_token=access_token,
-        expires_in=int((expires_in - now).total_seconds()),
-        scope=db_client.scopes,
-    )
+            now = utc_now()
+            expires_in = now + datetime.timedelta(minutes=settings.auth_access_token_expire_minutes)
+            payload = {
+                "sub": str(client_id),
+                "exp": expires_in,
+                "iat": now,
+                "scope": db_client.scopes,
+                "ver": db_client.token_version,
+            }
+            access_token = jwt.encode(
+                payload, key=settings.auth_secret_key, algorithm=settings.auth_algorithm
+            )
+
+        duration = time.perf_counter() - start_time
+        logger.info(
+            "jwt token issued",
+            extra={
+                "client_id": str(client_id),
+                "client_name": db_client.name,
+                "scopes": db_client.scopes,
+                "expires_in_minutes": settings.auth_access_token_expire_minutes,
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        return ClientToken(
+            access_token=access_token,
+            expires_in=int((expires_in - now).total_seconds()),
+            scope=db_client.scopes,
+        )
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+        logger.error(
+            "token issuance failed",
+            extra={"client_id": str(client_id), "error": str(e), "duration": f"{duration:.4f}s"},
+        )
+        raise
 
 
 async def decode_jwt_client_token(access_token: str, auth_enabled: bool = True) -> DecodedClientToken:
@@ -219,7 +276,11 @@ async def decode_jwt_client_token(access_token: str, auth_enabled: bool = True) 
         InvalidClient: If token is invalid, expired, or client is disabled/revoked.
     """
     if not auth_enabled:
+        logger.debug("authentication disabled, returning test token")
         return DecodedClientToken(client_id=uuid.uuid7(), scopes={"*"})
+
+    start_time = time.perf_counter()
+    logger.debug("decoding jwt token")
 
     try:
         payload = jwt.decode(
@@ -227,20 +288,57 @@ async def decode_jwt_client_token(access_token: str, auth_enabled: bool = True) 
             key=settings.auth_secret_key,
             algorithms=[settings.auth_algorithm],
         )
-    except JWTError:
+    except JWTError as e:
+        logger.warning("jwt token decode failed: invalid token", extra={"error": str(e)})
         raise InvalidClient("Invalid jwt token") from None
 
     client_id = payload["sub"]
     scopes = payload["scope"]
     token_version = payload["ver"]
 
-    async with SessionLocal() as session:
-        db_client = await _get_entity(session, DBClient, client_id, "Client not found", raise_exception=False)
-        if not db_client:
-            raise InvalidClient("Client not found") from None
-        if not db_client.is_active:
-            raise InvalidClient("Client disabled") from None
-        if token_version != db_client.token_version:
-            raise InvalidClient("Token revoked") from None
+    try:
+        async with SessionLocal() as session:
+            db_client = await _get_entity(
+                session, DBClient, client_id, "Client not found", raise_exception=False
+            )
+            if not db_client:
+                logger.warning(
+                    "jwt token validation failed: client not found", extra={"client_id": client_id}
+                )
+                raise InvalidClient("Client not found") from None
+            if not db_client.is_active:
+                logger.warning(
+                    "jwt token validation failed: client disabled",
+                    extra={"client_id": client_id, "client_name": db_client.name},
+                )
+                raise InvalidClient("Client disabled") from None
+            if token_version != db_client.token_version:
+                logger.warning(
+                    "jwt token validation failed: token revoked",
+                    extra={
+                        "client_id": client_id,
+                        "client_name": db_client.name,
+                        "token_version": token_version,
+                        "current_version": db_client.token_version,
+                    },
+                )
+                raise InvalidClient("Token revoked") from None
 
-    return DecodedClientToken(client_id=uuid.UUID(client_id), scopes={scope for scope in scopes.split()})
+        duration = time.perf_counter() - start_time
+        logger.debug(
+            "jwt token validated",
+            extra={
+                "client_id": client_id,
+                "client_name": db_client.name,
+                "scopes": scopes,
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        return DecodedClientToken(client_id=uuid.UUID(client_id), scopes={scope for scope in scopes.split()})
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+        logger.error(
+            "jwt token validation failed",
+            extra={"client_id": client_id, "error": str(e), "duration": f"{duration:.4f}s"},
+        )
+        raise

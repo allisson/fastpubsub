@@ -1,7 +1,7 @@
 """FastAPI application setup and configuration."""
 
 from fastapi import FastAPI, Request, status
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import JSONResponse, ORJSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from fastpubsub import models
@@ -131,6 +131,25 @@ def create_app() -> FastAPI:
             JSON error response with 403 status code.
         """
         return _create_error_response(models.GenericError, status.HTTP_403_FORBIDDEN, exc)
+
+    @app.exception_handler(Exception)
+    def generic_exception_handler(request: Request, exc: Exception):
+        """Handle generic Exception instances.
+
+        Catches any unhandled exceptions that don't have specific handlers.
+        Returns a generic 500 Internal Server Error response to avoid leaking
+        sensitive information about the application internals.
+
+        Args:
+            request: The incoming HTTP request that caused the exception.
+            exc: The unhandled exception that was raised.
+
+        Returns:
+            JSON error response with 500 status code and generic error message.
+        """
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"detail": "internal server error"}
+        )
 
     # Add routers
     app.include_router(topics.router)

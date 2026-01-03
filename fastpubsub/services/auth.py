@@ -1,5 +1,6 @@
 """Authentication and authorization services for fastpubsub."""
 
+import time
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -8,7 +9,10 @@ from fastapi.security import OAuth2PasswordBearer
 from fastpubsub import services
 from fastpubsub.config import settings
 from fastpubsub.exceptions import InvalidClientToken
+from fastpubsub.logger import get_logger
 from fastpubsub.models import DecodedClientToken
+
+logger = get_logger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/oauth/token", auto_error=False)
 
@@ -54,9 +58,46 @@ async def get_current_token(token: str | None = Depends(oauth2_scheme)) -> Decod
     Raises:
         InvalidClientToken: If token is invalid or authentication fails.
     """
-    if token is None:
-        token = ""
-    return await services.decode_jwt_client_token(token, auth_enabled=settings.auth_enabled)
+    start_time = time.perf_counter()
+
+    try:
+        if token is None:
+            token = ""
+
+        decoded_token = await services.decode_jwt_client_token(token, auth_enabled=settings.auth_enabled)
+
+        duration = time.perf_counter() - start_time
+        logger.debug(
+            "token validated",
+            extra={
+                "client_id": str(decoded_token.client_id),
+                "scopes": list(decoded_token.scopes),
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        return decoded_token
+    except InvalidClientToken as e:
+        duration = time.perf_counter() - start_time
+        logger.warning(
+            "token validation failed",
+            extra={
+                "error": str(e),
+                "has_token": token is not None and token != "",
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        raise
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+        logger.error(
+            "token validation error",
+            extra={
+                "error": str(e),
+                "has_token": token is not None and token != "",
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        raise
 
 
 def require_scope(resource: str, action: str):

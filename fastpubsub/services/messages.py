@@ -1,5 +1,6 @@
 """Message operations service for publishing, consuming, and managing pub/sub messages."""
 
+import time
 import uuid
 from typing import Any
 
@@ -7,8 +8,11 @@ from psycopg.types.json import Json
 from sqlalchemy import select, text
 
 from fastpubsub.database import SessionLocal
+from fastpubsub.logger import get_logger
 from fastpubsub.models import Message, SubscriptionMetrics
 from fastpubsub.services.helpers import _execute_sql_command
+
+logger = get_logger(__name__)
 
 
 async def publish_messages(topic_id: str, messages: list[dict[str, Any]]) -> int:
@@ -21,19 +25,45 @@ async def publish_messages(topic_id: str, messages: list[dict[str, Any]]) -> int
     Returns:
         Number of messages successfully published.
     """
-    query = "SELECT publish_messages(:topic_id, CAST(:messages AS jsonb[]))"
-    stmt = text(query).bindparams(topic_id=topic_id, messages=messages)
-    jsonb_array = [Json(m) for m in messages]
+    start_time = time.perf_counter()
+    logger.info("publishing messages", extra={"topic_id": topic_id, "message_count": len(messages)})
 
-    async with SessionLocal() as session:
-        result = await session.execute(
-            stmt,
-            {"topic_id": topic_id, "messages": jsonb_array},
+    try:
+        query = "SELECT publish_messages(:topic_id, CAST(:messages AS jsonb[]))"
+        stmt = text(query).bindparams(topic_id=topic_id, messages=messages)
+        jsonb_array = [Json(m) for m in messages]
+
+        async with SessionLocal() as session:
+            result = await session.execute(
+                stmt,
+                {"topic_id": topic_id, "messages": jsonb_array},
+            )
+            count = result.scalar_one()
+            await session.commit()
+
+        duration = time.perf_counter() - start_time
+        logger.info(
+            "messages published",
+            extra={
+                "topic_id": topic_id,
+                "published_count": count,
+                "requested_count": len(messages),
+                "duration": f"{duration:.4f}s",
+            },
         )
-        count = result.scalar_one()
-        await session.commit()
-
-    return count
+        return count
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+        logger.error(
+            "message publishing failed",
+            extra={
+                "topic_id": topic_id,
+                "message_count": len(messages),
+                "error": str(e),
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        raise
 
 
 async def consume_messages(subscription_id: str, consumer_id: str, batch_size: int) -> list[Message]:
@@ -47,22 +77,54 @@ async def consume_messages(subscription_id: str, consumer_id: str, batch_size: i
     Returns:
         List of available messages for consumption.
     """
-    query = "SELECT * FROM consume_messages(:subscription_id, :consumer_id, :batch_size)"
-    stmt = text(query)
+    start_time = time.perf_counter()
+    logger.info(
+        "consuming messages",
+        extra={"subscription_id": subscription_id, "consumer_id": consumer_id, "batch_size": batch_size},
+    )
 
-    async with SessionLocal() as session:
-        result = await session.execute(
-            stmt,
-            {
+    try:
+        query = "SELECT * FROM consume_messages(:subscription_id, :consumer_id, :batch_size)"
+        stmt = text(query)
+
+        async with SessionLocal() as session:
+            result = await session.execute(
+                stmt,
+                {
+                    "subscription_id": subscription_id,
+                    "consumer_id": consumer_id,
+                    "batch_size": batch_size,
+                },
+            )
+            rows = result.mappings().all()
+            await session.commit()
+
+        messages = [Message(**row) for row in rows]
+        duration = time.perf_counter() - start_time
+        logger.info(
+            "messages consumed",
+            extra={
+                "subscription_id": subscription_id,
+                "consumer_id": consumer_id,
+                "consumed_count": len(messages),
+                "requested_batch_size": batch_size,
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        return messages
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+        logger.error(
+            "message consumption failed",
+            extra={
                 "subscription_id": subscription_id,
                 "consumer_id": consumer_id,
                 "batch_size": batch_size,
+                "error": str(e),
+                "duration": f"{duration:.4f}s",
             },
         )
-        rows = result.mappings().all()
-        await session.commit()
-
-    return [Message(**row) for row in rows]
+        raise
 
 
 async def ack_messages(subscription_id: str, message_ids: list[uuid.UUID]) -> bool:
@@ -75,8 +137,46 @@ async def ack_messages(subscription_id: str, message_ids: list[uuid.UUID]) -> bo
     Returns:
         True if exactly one row was affected, False otherwise.
     """
-    query = "SELECT ack_messages(:subscription_id, :message_ids)"
-    return await _execute_sql_command(query, {"subscription_id": subscription_id, "message_ids": message_ids})
+    start_time = time.perf_counter()
+    logger.info(
+        "acknowledging messages",
+        extra={
+            "subscription_id": subscription_id,
+            "message_ids": [str(mid) for mid in message_ids],
+            "message_count": len(message_ids),
+        },
+    )
+
+    try:
+        query = "SELECT ack_messages(:subscription_id, :message_ids)"
+        result = await _execute_sql_command(
+            query, {"subscription_id": subscription_id, "message_ids": message_ids}
+        )
+
+        duration = time.perf_counter() - start_time
+        logger.info(
+            "messages acknowledged",
+            extra={
+                "subscription_id": subscription_id,
+                "message_count": len(message_ids),
+                "success": result,
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        return result
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+        logger.error(
+            "message acknowledgment failed",
+            extra={
+                "subscription_id": subscription_id,
+                "message_ids": [str(mid) for mid in message_ids],
+                "message_count": len(message_ids),
+                "error": str(e),
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        raise
 
 
 async def nack_messages(subscription_id: str, message_ids: list[uuid.UUID]) -> bool:
@@ -89,8 +189,46 @@ async def nack_messages(subscription_id: str, message_ids: list[uuid.UUID]) -> b
     Returns:
         True if exactly one row was affected, False otherwise.
     """
-    query = "SELECT nack_messages(:subscription_id, :message_ids)"
-    return await _execute_sql_command(query, {"subscription_id": subscription_id, "message_ids": message_ids})
+    start_time = time.perf_counter()
+    logger.warning(
+        "negatively acknowledging messages",
+        extra={
+            "subscription_id": subscription_id,
+            "message_ids": [str(mid) for mid in message_ids],
+            "message_count": len(message_ids),
+        },
+    )
+
+    try:
+        query = "SELECT nack_messages(:subscription_id, :message_ids)"
+        result = await _execute_sql_command(
+            query, {"subscription_id": subscription_id, "message_ids": message_ids}
+        )
+
+        duration = time.perf_counter() - start_time
+        logger.warning(
+            "messages negatively acknowledged",
+            extra={
+                "subscription_id": subscription_id,
+                "message_count": len(message_ids),
+                "success": result,
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        return result
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+        logger.error(
+            "message negative acknowledgment failed",
+            extra={
+                "subscription_id": subscription_id,
+                "message_ids": [str(mid) for mid in message_ids],
+                "message_count": len(message_ids),
+                "error": str(e),
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        raise
 
 
 async def list_dlq_messages(subscription_id: str, offset: int = 0, limit: int = 100) -> list[Message]:
@@ -144,8 +282,34 @@ async def cleanup_stuck_messages(lock_timeout_seconds: int) -> bool:
     Returns:
         True if cleanup was successful, False otherwise.
     """
-    query = "SELECT cleanup_stuck_messages(make_interval(secs => :timeout))"
-    return await _execute_sql_command(query, {"timeout": lock_timeout_seconds})
+    start_time = time.perf_counter()
+    logger.info("cleaning up stuck messages", extra={"lock_timeout_seconds": lock_timeout_seconds})
+
+    try:
+        query = "SELECT cleanup_stuck_messages(make_interval(secs => :timeout))"
+        result = await _execute_sql_command(query, {"timeout": lock_timeout_seconds})
+
+        duration = time.perf_counter() - start_time
+        logger.info(
+            "stuck messages cleanup completed",
+            extra={
+                "lock_timeout_seconds": lock_timeout_seconds,
+                "success": result,
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        return result
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+        logger.error(
+            "stuck messages cleanup failed",
+            extra={
+                "lock_timeout_seconds": lock_timeout_seconds,
+                "error": str(e),
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        raise
 
 
 async def cleanup_acked_messages(older_than_seconds: int) -> bool:
@@ -157,8 +321,30 @@ async def cleanup_acked_messages(older_than_seconds: int) -> bool:
     Returns:
         True if cleanup was successful, False otherwise.
     """
-    query = "SELECT cleanup_acked_messages(make_interval(secs => :older_than))"
-    return await _execute_sql_command(query, {"older_than": older_than_seconds})
+    start_time = time.perf_counter()
+    logger.info("cleaning up acknowledged messages", extra={"older_than_seconds": older_than_seconds})
+
+    try:
+        query = "SELECT cleanup_acked_messages(make_interval(secs => :older_than))"
+        result = await _execute_sql_command(query, {"older_than": older_than_seconds})
+
+        duration = time.perf_counter() - start_time
+        logger.info(
+            "acknowledged messages cleanup completed",
+            extra={
+                "older_than_seconds": older_than_seconds,
+                "success": result,
+                "duration": f"{duration:.4f}s",
+            },
+        )
+        return result
+    except Exception as e:
+        duration = time.perf_counter() - start_time
+        logger.error(
+            "acknowledged messages cleanup failed",
+            extra={"older_than_seconds": older_than_seconds, "error": str(e), "duration": f"{duration:.4f}s"},
+        )
+        raise
 
 
 async def subscription_metrics(subscription_id: str) -> SubscriptionMetrics:
