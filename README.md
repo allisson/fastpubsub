@@ -1012,11 +1012,44 @@ Each consumer uses a unique `consumer_id` to identify itself. Messages are locke
 Proper error handling ensures reliable message processing:
 
 ```python
+import asyncio
 import httpx
 import logging
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
+
+
+# Define custom exceptions (implement based on your business logic)
+class RetriableError(Exception):
+    """Temporary error that should be retried"""
+    pass
+
+
+class PermanentError(Exception):
+    """Permanent error that should not be retried"""
+    pass
+
+
+async def process_single_message(payload: Dict[str, Any]):
+    """
+    Process a single message - implement your business logic here.
+    
+    Raise RetriableError for temporary failures (network issues, service unavailable).
+    Raise PermanentError for permanent failures (invalid data, business rule violation).
+    """
+    # Example implementation
+    if not payload.get("email"):
+        raise PermanentError("Missing required field: email")
+    
+    try:
+        # Your actual processing logic here
+        # For example: send email, update database, call external API, etc.
+        logger.info(f"Processing message: {payload}")
+    except ConnectionError:
+        # Temporary network issue - retry later
+        raise RetriableError("Network connection failed")
+
 
 async def process_messages(subscription_id: str, consumer_id: str):
     """Consumer implementation with proper error handling"""
@@ -1045,7 +1078,6 @@ async def process_messages(subscription_id: str, consumer_id: str):
                 for message in messages:
                     msg_id = message["id"]
                     try:
-                        # Your business logic here
                         await process_single_message(message["payload"])
                         ack_ids.append(msg_id)
                         logger.info(f"Successfully processed message {msg_id}")
@@ -1081,8 +1113,10 @@ async def process_messages(subscription_id: str, consumer_id: str):
                 logger.error(f"Unexpected error: {e}")
                 await asyncio.sleep(5)
 
-# Run the consumer
-asyncio.run(process_messages("email-sender", "worker-1"))
+
+if __name__ == "__main__":
+    # Run the consumer
+    asyncio.run(process_messages("email-sender", "worker-1"))
 ```
 
 **Best practices shown:**
