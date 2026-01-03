@@ -1,15 +1,13 @@
-"""
-Sanitization utilities for preventing SQL and XSS injection attacks.
-"""
+"""Sanitization utilities for preventing SQL and XSS injection attacks."""
 
 import html
 import re
 
 
 def sanitize_string(value: str) -> str:
-    """
-    Sanitize a string value to prevent XSS attacks.
+    """Sanitize a string value to prevent XSS attacks.
 
+    Performs the following sanitization:
     - HTML entity encoding to prevent script injection
     - Remove null bytes and control characters
 
@@ -17,7 +15,7 @@ def sanitize_string(value: str) -> str:
         value: String to sanitize
 
     Returns:
-        Sanitized string
+        Sanitized string safe for use in web contexts.
     """
     if not isinstance(value, str):
         return value
@@ -33,8 +31,7 @@ def sanitize_string(value: str) -> str:
 
 
 def validate_filter_structure(filter_dict: dict | None) -> bool:
-    """
-    Validate that a filter has the correct structure.
+    """Validate that a filter has the correct structure.
 
     Expected structure: {"field_name": ["value1", "value2", ...]}
     - Keys must be strings
@@ -45,7 +42,7 @@ def validate_filter_structure(filter_dict: dict | None) -> bool:
         filter_dict: Filter dictionary to validate
 
     Returns:
-        True if valid, False otherwise
+        True if valid structure, False otherwise.
     """
     if filter_dict is None or filter_dict == {}:
         return True
@@ -74,8 +71,7 @@ def validate_filter_structure(filter_dict: dict | None) -> bool:
 
 
 def sanitize_filter(filter_dict: dict | None) -> dict | None:
-    """
-    Sanitize a filter dictionary to prevent SQL and XSS injection attacks.
+    """Sanitize a filter dictionary to prevent SQL and XSS injection attacks.
 
     This function:
     1. Validates the filter structure
@@ -86,10 +82,10 @@ def sanitize_filter(filter_dict: dict | None) -> dict | None:
         filter_dict: Filter dictionary to sanitize
 
     Returns:
-        Sanitized filter dictionary
+        Sanitized filter dictionary safe for database queries and web contexts.
 
     Raises:
-        ValueError: If filter structure is invalid
+        ValueError: If filter structure is invalid.
     """
     if filter_dict is None or filter_dict == {}:
         return filter_dict

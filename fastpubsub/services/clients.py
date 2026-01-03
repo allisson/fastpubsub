@@ -1,3 +1,5 @@
+"""Client management services for authentication and authorization."""
+
 import datetime
 import secrets
 import uuid
@@ -25,10 +27,33 @@ password_hash = PasswordHash.recommended()
 
 
 def generate_secret() -> str:
+    """Generate a cryptographically secure random secret.
+
+    Creates a random 32-character hexadecimal string that can be used
+    as a client secret for JWT token authentication.
+
+    Returns:
+        Random secret string in hexadecimal format.
+    """
     return secrets.token_hex(16)
 
 
 async def create_client(data: CreateClient) -> CreateClientResult:
+    """Create a new client with authentication credentials.
+
+    Creates a new client in the database with a generated secret and
+    initializes the client with the provided configuration.
+
+    Args:
+        data: Client creation data including name, scopes, and active status.
+
+    Returns:
+        CreateClientResult containing the new client ID and generated secret.
+
+    Raises:
+        AlreadyExistsError: If a client with the same ID already exists.
+        ValueError: If client data validation fails.
+    """
     async with SessionLocal() as session:
         now = utc_now()
         secret = generate_secret()
@@ -51,6 +76,19 @@ async def create_client(data: CreateClient) -> CreateClientResult:
 
 
 async def get_client(client_id: uuid.UUID) -> Client:
+    """Retrieve a client by ID.
+
+    Fetches the full details of an existing client from the database.
+
+    Args:
+        client_id: UUID of the client to retrieve.
+
+    Returns:
+        Client model with full client details.
+
+    Raises:
+        NotFoundError: If no client with the given ID exists.
+    """
     async with SessionLocal() as session:
         db_client = await _get_entity(session, DBClient, client_id, "Client not found")
 
@@ -58,6 +96,17 @@ async def get_client(client_id: uuid.UUID) -> Client:
 
 
 async def list_client(offset: int, limit: int) -> list[Client]:
+    """List clients with pagination support.
+
+    Retrieves a paginated list of all clients in the system.
+
+    Args:
+        offset: Number of items to skip for pagination.
+        limit: Maximum number of items to return.
+
+    Returns:
+        List of Client models.
+    """
     async with SessionLocal() as session:
         stmt = select(DBClient).order_by(DBClient.id.asc()).offset(offset).limit(limit)
         result = await session.execute(stmt)
@@ -67,6 +116,21 @@ async def list_client(offset: int, limit: int) -> list[Client]:
 
 
 async def update_client(client_id: uuid.UUID, data: UpdateClient) -> Client:
+    """Update an existing client's properties.
+
+    Modifies the properties of an existing client and increments
+    the token version to invalidate existing tokens.
+
+    Args:
+        client_id: UUID of the client to update.
+        data: Updated client data including name, scopes, and active status.
+
+    Returns:
+        Client model with updated details.
+
+    Raises:
+        NotFoundError: If no client with the given ID exists.
+    """
     async with SessionLocal() as session:
         db_client = await _get_entity(session, DBClient, client_id, "Client not found")
         db_client.name = data.name
@@ -81,11 +145,36 @@ async def update_client(client_id: uuid.UUID, data: UpdateClient) -> Client:
 
 
 async def delete_client(client_id: uuid.UUID) -> None:
+    """Delete a client by ID.
+
+    Permanently removes a client from the database and all associated data.
+
+    Args:
+        client_id: UUID of the client to delete.
+
+    Raises:
+        NotFoundError: If no client with the given ID exists.
+    """
     async with SessionLocal() as session:
         await _delete_entity(session, DBClient, client_id, "Client not found")
 
 
 async def issue_jwt_client_token(client_id: uuid.UUID, client_secret: str) -> ClientToken:
+    """Issue a new JWT access token for a client.
+
+    Validates client credentials and generates a new access token
+    with the client's scopes and expiration time.
+
+    Args:
+        client_id: UUID of the client requesting a token.
+        client_secret: Client's secret for authentication.
+
+    Returns:
+        ClientToken containing the access token, expiration, and scopes.
+
+    Raises:
+        InvalidClient: If client credentials are invalid or client is disabled.
+    """
     async with SessionLocal() as session:
         db_client = await _get_entity(session, DBClient, client_id, "Client not found", raise_exception=False)
         if not db_client:
@@ -114,6 +203,21 @@ async def issue_jwt_client_token(client_id: uuid.UUID, client_secret: str) -> Cl
 
 
 async def decode_jwt_client_token(access_token: str, auth_enabled: bool = True) -> DecodedClientToken:
+    """Decode and validate a JWT access token.
+
+    Validates the token signature, expiration, and client status.
+    Ensures the token hasn't been revoked by checking token version.
+
+    Args:
+        access_token: JWT access token to decode and validate.
+        auth_enabled: Whether authentication is enabled (for testing).
+
+    Returns:
+        DecodedClientToken with client ID and scopes.
+
+    Raises:
+        InvalidClient: If token is invalid, expired, or client is disabled/revoked.
+    """
     if not auth_enabled:
         return DecodedClientToken(client_id=uuid.uuid7(), scopes={"*"})
 
