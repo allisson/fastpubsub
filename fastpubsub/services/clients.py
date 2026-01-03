@@ -250,8 +250,6 @@ async def issue_jwt_client_token(client_id: uuid.UUID, client_secret: str) -> Cl
             expires_in=int((expires_in - now).total_seconds()),
             scope=db_client.scopes,
         )
-    except InvalidClient:
-        raise
     except Exception as e:
         duration = time.perf_counter() - start_time
         logger.error(
