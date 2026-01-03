@@ -1034,14 +1034,14 @@ class PermanentError(Exception):
 async def process_single_message(payload: Dict[str, Any]):
     """
     Process a single message - implement your business logic here.
-    
+
     Raise RetriableError for temporary failures (network issues, service unavailable).
     Raise PermanentError for permanent failures (invalid data, business rule violation).
     """
     # Example implementation
     if not payload.get("email"):
         raise PermanentError("Missing required field: email")
-    
+
     try:
         # Your actual processing logic here
         # For example: send email, update database, call external API, etc.
@@ -1054,7 +1054,7 @@ async def process_single_message(payload: Dict[str, Any]):
 async def process_messages(subscription_id: str, consumer_id: str):
     """Consumer implementation with proper error handling"""
     base_url = "http://localhost:8000"
-    
+
     async with httpx.AsyncClient() as client:
         while True:
             try:
@@ -1066,15 +1066,15 @@ async def process_messages(subscription_id: str, consumer_id: str):
                 )
                 response.raise_for_status()
                 messages = response.json()["data"]
-                
+
                 if not messages:
                     await asyncio.sleep(1)
                     continue
-                
+
                 # Process each message
                 ack_ids = []
                 nack_ids = []
-                
+
                 for message in messages:
                     msg_id = message["id"]
                     try:
@@ -1089,7 +1089,7 @@ async def process_messages(subscription_id: str, consumer_id: str):
                         # Permanent error - ack to prevent retries
                         ack_ids.append(msg_id)
                         logger.error(f"Permanent error for {msg_id}: {e}")
-                
+
                 # Acknowledge successful/permanent-error messages
                 if ack_ids:
                     await client.post(
@@ -1097,7 +1097,7 @@ async def process_messages(subscription_id: str, consumer_id: str):
                         json=ack_ids,
                         timeout=10.0
                     )
-                
+
                 # NACK retriable errors for retry with backoff
                 if nack_ids:
                     await client.post(
@@ -1105,7 +1105,7 @@ async def process_messages(subscription_id: str, consumer_id: str):
                         json=nack_ids,
                         timeout=10.0
                     )
-                    
+
             except httpx.HTTPError as e:
                 logger.error(f"HTTP error: {e}")
                 await asyncio.sleep(5)
@@ -1164,47 +1164,6 @@ fi
 if [ "$DELIVERED" -gt 100 ]; then
   echo "⚠️  WARNING: $DELIVERED messages in delivered state (possible consumer crash)"
 fi
-```
-
-**Grafana Dashboard Example:**
-
-Create dashboards using Prometheus metrics:
-
-```promql
-# Messages available to consume
-fastpubsub_subscription_available{subscription_id="email-sender"}
-
-# Messages in DLQ (trigger alert if > 0)
-fastpubsub_subscription_dlq{subscription_id="email-sender"}
-
-# API request rate
-rate(http_requests_total[5m])
-
-# API error rate
-rate(http_requests_total{status=~"5.."}[5m])
-```
-
-**Alert Rules:**
-
-```yaml
-groups:
-  - name: fastpubsub
-    rules:
-      - alert: HighDLQCount
-        expr: fastpubsub_subscription_dlq > 10
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High number of messages in DLQ"
-          
-      - alert: MessageBacklog
-        expr: fastpubsub_subscription_available > 1000
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Large message backlog detected"
 ```
 
 ### Example 12: Topic Fan-out Pattern
