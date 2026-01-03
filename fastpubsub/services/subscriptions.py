@@ -74,8 +74,6 @@ async def create_subscription(data: CreateSubscription) -> Subscription:
             extra={"subscription_id": data.id, "topic_id": data.topic_id, "duration": f"{duration:.4f}s"},
         )
         return Subscription(**db_subscription.to_dict())
-    except (AlreadyExistsError, NotFoundError):
-        raise
     except Exception as e:
         duration = time.perf_counter() - start_time
         logger.error(
