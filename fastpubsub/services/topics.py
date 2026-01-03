@@ -46,8 +46,6 @@ async def create_topic(data: CreateTopic) -> Topic:
         duration = time.perf_counter() - start_time
         logger.info("topic created", extra={"topic_id": data.id, "duration": f"{duration:.4f}s"})
         return Topic(**db_topic.to_dict())
-    except AlreadyExistsError:
-        raise
     except Exception as e:
         duration = time.perf_counter() - start_time
         logger.error(
