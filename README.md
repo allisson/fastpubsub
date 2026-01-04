@@ -10,10 +10,11 @@
 
 ### 🎯 What is fastpubsub?
 
-fastpubsub is **not** intended to replace production-grade messaging systems like Google Cloud Pub/Sub, NATS, or Apache Kafka. Instead, it brings key pub/sub features to **simple architectures** where you already have PostgreSQL available. If you're running a small to medium-sized application with PostgreSQL as your primary database, fastpubsub lets you add reliable messaging capabilities without introducing additional infrastructure complexity.
+fastpubsub is **not** intended to replace dedicated high-throughput messaging systems like Google Cloud Pub/Sub, NATS, or Apache Kafka. Instead, it brings key pub/sub features to **simple architectures** where you already have PostgreSQL available. If you're running a small to medium-sized application with PostgreSQL as your primary database, fastpubsub lets you add reliable messaging capabilities without introducing additional infrastructure complexity.
 
 **Use fastpubsub when you:**
 - Already use PostgreSQL and want to avoid managing separate message brokers
+- Want to keep your stack simple with fewer moving parts
 - Need pub/sub functionality for small to medium workloads
 - Prefer simplicity over maximum throughput
 - Want a single database for both application data and messaging
@@ -28,12 +29,13 @@ fastpubsub is **not** intended to replace production-grade messaging systems lik
 ### ✨ Key Features
 
 - 🎯 **Topic-based messaging** - Organize messages by topics
+- 🔒 **Secure** - Built-in authentication with JWT and scope-based permissions
 - 🔍 **Message filtering** - Subscribe to specific messages using JSON-based filters
 - 🔄 **Automatic retries** - Configurable retry logic with exponential backoff
 - 💀 **Dead Letter Queue (DLQ)** - Handle failed messages gracefully
 - 📊 **Metrics & Monitoring** - Built-in subscription metrics and Prometheus support
 - 🐳 **Docker-ready** - Easy deployment with Docker
-- 🔒 **Reliable delivery** - Acknowledgment and negative-acknowledgment support
+- 🛡️ **Reliable delivery** - Acknowledgment and negative-acknowledgment support
 - 🧹 **Automatic cleanup** - Background jobs for message maintenance
 
 ## 🏗️ Architecture
